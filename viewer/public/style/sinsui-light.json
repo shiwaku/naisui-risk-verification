@@ -1,0 +1,151 @@
+{
+  "version": 8,
+  "name": "水害履歴・浸水実績（ライト）",
+  "metadata": {
+    "naisui-risk:generated-by": "viewer/scripts/export-style.mjs",
+    "naisui-risk:source": "viewer/src/layers.ts の buildStyle()",
+    "naisui-risk:note": "生成物。直接編集せず viewer/src/layers.ts を直して書き出し直すこと。"
+  },
+  "sources": {
+    "sinsui": {
+      "type": "vector",
+      "url": "pmtiles://https://shiwaku.github.io/ksj-suigai-rireki-converter/output/sinsui_all.pmtiles",
+      "attribution": "出典: <a href=\"https://nlftp.mlit.go.jp/ksj/\" target=\"_blank\" rel=\"noopener\">国土数値情報（水害履歴・浸水実績）国土交通省</a>を加工して作成"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#ffffff"
+      }
+    },
+    {
+      "id": "sinsui_fill",
+      "type": "fill",
+      "source": "sinsui",
+      "source-layer": "sinsui",
+      "minzoom": 4,
+      "filter": [
+        "all"
+      ],
+      "paint": {
+        "fill-color": [
+          "case",
+          [
+            "case",
+            [
+              "==",
+              [
+                "coalesce",
+                [
+                  "get",
+                  "disastName"
+                ],
+                ""
+              ],
+              ""
+            ],
+            [
+              "to-boolean",
+              [
+                "get",
+                "typhoon_file"
+              ]
+            ],
+            [
+              ">=",
+              [
+                "index-of",
+                "台風",
+                [
+                  "coalesce",
+                  [
+                    "get",
+                    "disastName"
+                  ],
+                  ""
+                ]
+              ],
+              0
+            ]
+          ],
+          "#eb6834",
+          "#2a78d6"
+        ],
+        "fill-opacity": 0.35,
+        "fill-antialias": true
+      }
+    },
+    {
+      "id": "sinsui_outline",
+      "type": "line",
+      "source": "sinsui",
+      "source-layer": "sinsui",
+      "minzoom": 9,
+      "filter": [
+        "all"
+      ],
+      "paint": {
+        "line-color": [
+          "case",
+          [
+            "case",
+            [
+              "==",
+              [
+                "coalesce",
+                [
+                  "get",
+                  "disastName"
+                ],
+                ""
+              ],
+              ""
+            ],
+            [
+              "to-boolean",
+              [
+                "get",
+                "typhoon_file"
+              ]
+            ],
+            [
+              ">=",
+              [
+                "index-of",
+                "台風",
+                [
+                  "coalesce",
+                  [
+                    "get",
+                    "disastName"
+                  ],
+                  ""
+                ]
+              ],
+              0
+            ]
+          ],
+          "#eb6834",
+          "#2a78d6"
+        ],
+        "line-width": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          9,
+          0.5,
+          14,
+          1.4
+        ],
+        "line-opacity": 0.6499999999999999
+      }
+    }
+  ]
+}

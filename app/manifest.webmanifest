@@ -1,0 +1,20 @@
+{
+  "name": "内水リスク検証ビューワ",
+  "short_name": "内水リスク検証",
+  "description": "水害履歴（浸水実績）・地形分類・Mapterhorn の標高を重ねて内水氾濫リスクの推定を確かめるビューワ",
+  "lang": "ja",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#2a78d6",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

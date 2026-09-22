@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>内水リスク検証ビューワ</title>
+  <meta name="description" content="水害履歴（浸水実績）・地形分類・Mapterhorn の標高を重ね、内水氾濫が起こりやすい場所を地形から推定できるかを確かめるビューワ" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#2a78d6" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="内水リスク検証" />
+</head>
+<body>
+  <div id="map"></div>
+
+  <section id="panel" class="panel" aria-label="コントロールパネル">
+    <header class="panel-head">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">🌊</span>
+        <h1>内水リスク検証</h1>
+      </div>
+      <div class="head-actions">
+        <button id="theme-btn" class="icon-btn" type="button" title="テーマ切替" aria-label="テーマ切替"></button>
+        <button id="collapse-btn" class="icon-btn" type="button" title="パネル開閉" aria-label="パネル開閉"></button>
+      </div>
+    </header>
+
+    <div id="panel-body" class="panel-body">
+      <!-- ---- 浸水実績 ---- -->
+      <div class="field">
+        <div class="field-head">
+          <span class="field-label">浸水実績</span>
+          <span id="feature-count" class="count-badge">–</span>
+        </div>
+        <label class="toggle">
+          <input id="sinsui-on" type="checkbox" checked />
+          <span class="switch"></span>
+          <span class="t-label">浸水域を表示</span>
+        </label>
+        <div class="slider-row">
+          <label for="sinsui-opacity">不透明度</label>
+          <input id="sinsui-opacity" type="range" min="0.05" max="1" step="0.05" value="0.35" />
+          <span id="sinsui-opacity-val" class="op-val">35%</span>
+        </div>
+      </div>
+
+      <!-- ---- 成因（台風 / 大雨）で塗り分け・絞り込み ---- -->
+      <div class="field">
+        <div class="field-head">
+          <span class="field-label">成因</span>
+        </div>
+        <div id="origin-modes" class="seg" role="group" aria-label="成因で絞る"></div>
+        <ul id="legend" class="legend"></ul>
+        <p class="note">災害名に「台風」を含むものを台風性とし、名称が無い37件は元ファイル名の <code>_t</code> で補う。七夕豪雨・東海豪雨のように台風由来の豪雨は台風に入る。</p>
+      </div>
+
+      <!-- ---- 個別のイベント ---- -->
+      <div class="field">
+        <div class="field-head">
+          <span class="field-label">水害イベント</span>
+          <div class="field-actions">
+            <button id="event-zoom" class="mini-btn" type="button" disabled>範囲へ移動</button>
+          </div>
+        </div>
+        <div class="combo">
+          <input
+            id="event-input"
+            class="combo-input"
+            type="text"
+            role="combobox"
+            aria-expanded="false"
+            aria-controls="event-list"
+            aria-autocomplete="list"
+            aria-label="水害イベントを検索して選ぶ"
+            autocomplete="off"
+            placeholder="災害名・年で検索（例: 東海、2000）"
+          />
+          <button id="event-clear" class="combo-clear" type="button" title="選択を解除" aria-label="選択を解除" hidden>×</button>
+          <ul id="event-list" class="combo-list" role="listbox" aria-label="水害イベント" hidden></ul>
+        </div>
+        <p id="event-note" class="note"></p>
+      </div>
+
+      <!-- ---- 地形分類（国土地理院） ---- -->
+      <div class="field">
+        <div class="field-head">
+          <span class="field-label">地形分類（国土地理院）</span>
+        </div>
+        <label class="toggle">
+          <input id="landform-natural-on" type="checkbox" checked />
+          <span class="switch"></span>
+          <span class="t-label">自然地形</span>
+        </label>
+        <label class="toggle">
+          <input id="landform-artificial-on" type="checkbox" checked />
+          <span class="switch"></span>
+          <span class="t-label">人工地形</span>
+        </label>
+        <div id="landform-opts">
+          <div id="landform-modes" class="seg" role="group" aria-label="地形分類の表示範囲"></div>
+          <div class="slider-row">
+            <label for="landform-opacity">不透明度</label>
+            <input id="landform-opacity" type="range" min="0.1" max="1" step="0.05" value="0.5" />
+            <span id="landform-opacity-val" class="op-val">50%</span>
+          </div>
+          <p id="landform-zoom-note" class="note dem-note" aria-live="polite" hidden></p>
+          <ul id="landform-legend" class="legend"></ul>
+          <p class="note">「内水関連」は凹地・浅い谷、後背低地・湿地、旧河道、落堀、旧水部（自然地形）と干拓地、盛土地・埋立地（人工地形）。盛土地は盛土で窪地が消えていても元の地形がリスクを持つ可能性があるので含めた。ズーム 13 以上で詳細版を表示し、詳細版が整備されていない地域では何も出ない。クリックで土地の成り立ちとリスクを表示する。</p>
+        </div>
+      </div>
+
+      <!-- ---- 地形（Mapterhorn） ---- -->
+      <div class="field">
+        <div class="field-head">
+          <span class="field-label">地形（Mapterhorn）</span>
+        </div>
+
+        <label class="toggle">
+          <input id="relief-on" type="checkbox" />
+          <span class="switch"></span>
+          <span class="t-label">段彩（標高）</span>
+        </label>
+        <div id="relief-opts" hidden>
+          <div class="slider-row">
+            <label for="relief-range">標高レンジ</label>
+            <select id="relief-range" class="select select-inline" aria-label="段彩の標高レンジ"></select>
+          </div>
+          <div class="slider-row">
+            <label for="relief-opacity">不透明度</label>
+            <input id="relief-opacity" type="range" min="0.1" max="1" step="0.05" value="0.55" />
+            <span id="relief-opacity-val" class="op-val">55%</span>
+          </div>
+          <div id="relief-legend" class="relief-legend" aria-label="標高の凡例"></div>
+          <p id="dem-note" class="note dem-note" aria-live="polite"></p>
+          <p class="note">内水浸水の原因になる微小な窪地を読むには、レンジを狭めて色を引き伸ばす。「微地形 0〜5m」なら1段 50cm、「低地 0〜20m」なら1段 1m。ただし出る凹凸の細かさは地域の DEM に依存する。Mapterhorn が持つ基盤地図情報 DEM は 1m メッシュが部分的、5m が平野部中心、10m が全国で、細かさは z15 付近まで拡大すると現れる。</p>
+        </div>
+
+        <label class="toggle">
+          <input id="hillshade-on" type="checkbox" checked />
+          <span class="switch"></span>
+          <span class="t-label">陰影起伏</span>
+        </label>
+        <div id="hillshade-opts">
+          <select id="hillshade-method" class="select" aria-label="陰影起伏の算出方法"></select>
+          <div class="slider-row">
+            <label for="hillshade-exag">強調</label>
+            <input id="hillshade-exag" type="range" min="0" max="1" step="0.05" value="0.5" />
+            <span id="hillshade-exag-val" class="op-val">0.50</span>
+          </div>
+        </div>
+
+        <label class="toggle">
+          <input id="terrain-on" type="checkbox" />
+          <span class="switch"></span>
+          <span class="t-label">3D地形</span>
+        </label>
+        <div id="terrain-opts" hidden>
+          <div class="slider-row">
+            <label for="terrain-exag">起伏倍率</label>
+            <input id="terrain-exag" type="range" min="0" max="2" step="0.05" value="1" />
+            <span id="terrain-exag-val" class="op-val">1.00</span>
+          </div>
+        </div>
+
+        <label class="toggle">
+          <input id="contours-on" type="checkbox" />
+          <span class="switch"></span>
+          <span class="t-label">等高線</span>
+        </label>
+
+        <p class="note">DEM は <a href="https://mapterhorn.com/" target="_blank" rel="noopener">Mapterhorn</a> の全球地形タイル（terrarium）。等高線は DEM から実行時に生成する。</p>
+      </div>
+    </div>
+
+    <footer class="panel-foot">
+      <p class="disclaimer">本サイトは個人が作成・配信するものであり、国土交通省の公式サイトではありません。浸水実績は当時の資料に基づく記録で、今後の浸水範囲を示すものではありません。</p>
+      データ: <a href="https://nlftp.mlit.go.jp/ksj/" target="_blank" rel="noopener">国土数値情報（水害履歴・浸水実績）国土交通省</a><br />
+      地形分類: <a href="https://www.gsi.go.jp/bousaichiri/lfc_index.html" target="_blank" rel="noopener">国土地理院 ベクトルタイル提供実験（地形分類）</a><br />
+      地形: <a href="https://mapterhorn.com/" target="_blank" rel="noopener">Mapterhorn</a>（<a href="https://mapterhorn.com/attribution" target="_blank" rel="noopener">attribution</a>）<br />
+      背景: <a href="https://github.com/gsi-cyberjapan/optimal_bvmap" target="_blank" rel="noopener">国土地理院 最適化ベクトルタイル</a> / <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a><br />
+      浸水実績の変換・ビューワの元: <a href="https://github.com/shiwaku/ksj-suigai-rireki-converter" target="_blank" rel="noopener">ksj-suigai-rireki-converter</a><br />
+      <span id="build-ver" class="build-ver"></span>
+    </footer>
+  </section>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

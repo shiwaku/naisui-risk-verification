@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node (viewer)
+node_modules/
+
+# ダウンロードした元データと中間生成物（スクリプトで再取得・再生成できる）
+data/raw/
+data/interim/
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
