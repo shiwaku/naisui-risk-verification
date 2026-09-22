@@ -10,7 +10,7 @@
 標高（Mapterhorn）、水害履歴（浸水実績）、地形分類（国土地理院）を1枚の地図に重ね、
 「浸水した場所がどんな地形の上にあるか」を目で確かめるための Web ビューワ。
 
-公開先（予定）: <https://shiwaku.github.io/naisui-risk-verification/app/>
+公開先: <https://shiwaku.github.io/naisui-risk-verification/app/>
 
 | レイヤー | 内容 |
 |---|---|

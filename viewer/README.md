@@ -5,7 +5,7 @@
 `viewer/`（浸水実績 + Mapterhorn 地形）を土台にし、地形分類のレイヤーを加えた。
 浸水実績のタイル（PMTiles）とイベント索引（`public/events.json`）は同リポジトリの変換結果をそのまま使う。
 
-公開先（予定）: <https://shiwaku.github.io/naisui-risk-verification/app/>
+公開先: <https://shiwaku.github.io/naisui-risk-verification/app/>
 
 ## できること
 
