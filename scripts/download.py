@@ -6,6 +6,7 @@
 - 国土数値情報 雨水出水（内水）浸水想定区域 A51（2025年度版、収録22都道府県）
 - 国土数値情報 行政区域 N03（2025年、A51 がある都道府県だけ）
 - 水害履歴（浸水実績）の変換結果 sinsui_all.gpkg（ksj-suigai-rireki-converter）
+- 国土数値情報 人口集中地区 A16（令和2年国勢調査、全47都道府県）
 
 取得済みのファイルは飛ばす。
 """
@@ -67,6 +68,10 @@ def main() -> int:
 
     print("浸水実績")
     fetch(SINSUI_URL, RAW / "sinsui" / "sinsui_all.gpkg")
+
+    print("A16 人口集中地区（令和2年）")
+    for pref in (f"{i:02d}" for i in range(1, 48)):
+        unzip(fetch(f"{KSJ}/A16/A16-20/A16-20_{pref}_GML.zip", RAW / "A16" / f"A16-20_{pref}_GML.zip"))
     return 0
 
 
