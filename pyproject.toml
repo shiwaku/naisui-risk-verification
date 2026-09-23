@@ -1,0 +1,12 @@
+[project]
+name = "naisui-risk-verification"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "geopandas>=1.1.4",
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.6",
+    "pyogrio>=0.13.0",
+    "requests>=2.34.2",
+    "shapely>=2.1.2",
+]

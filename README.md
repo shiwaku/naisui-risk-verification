@@ -3,9 +3,14 @@
 内水ハザードマップが整備されていない地域について、公開されている地形データ（標高・地形分類）から
 **内水氾濫が起こりやすい場所をどこまで推定できるか**を、浸水実績と既存の内水浸水想定区域を使って検証する。
 
+対象は**都市型水害（短時間強雨による内水）**である。2026年の千葉豪雨（8月13日、千葉市で1時間 115.0mm）や
+名古屋の大雨（9月8日、1時間 104.5mm）はいずれも観測史上1位で、内水浸水想定区域が公開されていない大都市で
+内水氾濫が起きた。こうした都市に「内水浸水想定区域があれば」というのが出発点になっている。
+
 調査の背景・データ・当初案は [`docs/naisui-research-notes.md`](docs/naisui-research-notes.md)、
 既存手法の文献調査と手法選定は [`docs/method-survey.md`](docs/method-survey.md)、
-標高データ（都道府県の航空レーザ測量成果）の候補は [`docs/elevation-sources.md`](docs/elevation-sources.md) にまとめている。
+標高データ（都道府県の航空レーザ測量成果）の候補は [`docs/elevation-sources.md`](docs/elevation-sources.md)、
+検証対象地域の選定は [`docs/study-area-selection.md`](docs/study-area-selection.md) にまとめている。
 
 ## ビューワ
 
