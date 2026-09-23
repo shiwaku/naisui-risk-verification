@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>都市型水害ランキング</title>
+<meta name="description" content="2010〜2023年の水害統計調査から、都市部で内水・窪地内水による浸水被害が多かった市区町村を棟数の多い順に並べた表" />
+<link rel="icon" type="image/svg+xml" href="../app/icon.svg" />
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --ink: #14161a;
+    --ink-2: #5a6069;
+    --ink-3: #8b919b;
+    --line: rgba(20, 22, 26, 0.1);
+    --line-2: rgba(20, 22, 26, 0.16);
+    --accent: #2a78d6;
+    --accent-ink: #ffffff;
+    --hover: rgba(20, 22, 26, 0.04);
+    --typhoon: #eb6834;
+    --tsuyu: #8a5cc7;
+    --gou: #2a78d6;
+    --etc: #b3b9c4;
+    --mark: #1d8a5b;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101216;
+      --surface: #181b20;
+      --ink: #f2f4f7;
+      --ink-2: #b3b9c4;
+      --ink-3: #7d838e;
+      --line: rgba(255, 255, 255, 0.1);
+      --line-2: rgba(255, 255, 255, 0.16);
+      --accent: #4f97f0;
+      --accent-ink: #0a0c10;
+      --hover: rgba(255, 255, 255, 0.05);
+      --typhoon: #d95926;
+      --tsuyu: #a07ae0;
+      --gou: #3987e5;
+      --etc: #5a6069;
+      --mark: #3fb883;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101216;
+    --surface: #181b20;
+    --ink: #f2f4f7;
+    --ink-2: #b3b9c4;
+    --ink-3: #7d838e;
+    --line: rgba(255, 255, 255, 0.1);
+    --line-2: rgba(255, 255, 255, 0.16);
+    --accent: #4f97f0;
+    --accent-ink: #0a0c10;
+    --hover: rgba(255, 255, 255, 0.05);
+    --typhoon: #d95926;
+    --tsuyu: #a07ae0;
+    --gou: #3987e5;
+    --etc: #5a6069;
+    --mark: #3fb883;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 24px 16px 48px; }
+
+  header h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: 0.01em; }
+  header .lead { margin: 0; color: var(--ink-2); max-width: 760px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 14px; min-width: 150px;
+  }
+  .stat .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .k { color: var(--ink-2); font-size: 12px; }
+
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 14px; margin-bottom: 12px;
+  }
+  .controls label { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 13px; }
+  .controls select, .controls input[type="search"] {
+    font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line-2);
+    border-radius: 8px; padding: 4px 8px;
+  }
+  .controls input[type="search"] { width: 160px; }
+  .controls .count { margin-left: auto; color: var(--ink-3); font-size: 12px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; color: var(--ink-2); font-size: 12px; margin: 0 0 8px; }
+  .legend span::before {
+    content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+    margin-right: 5px; vertical-align: -1px; background: var(--c);
+  }
+
+  .table-wrap {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    overflow-x: auto;
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 1060px; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+  th {
+    position: sticky; top: 0; background: var(--surface); z-index: 1;
+    font-size: 12px; color: var(--ink-2); font-weight: 600; white-space: nowrap;
+    border-bottom: 1px solid var(--line-2);
+  }
+  th[data-key] { cursor: pointer; user-select: none; }
+  th[data-key]:hover { color: var(--ink); }
+  th .arrow { color: var(--accent); margin-left: 3px; }
+  tbody tr:hover { background: var(--hover); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.rank { color: var(--ink-3); }
+  td.muni { font-weight: 600; white-space: nowrap; }
+  td.pref { color: var(--ink-2); white-space: nowrap; }
+  td.center { text-align: center; }
+  td.nowrap { white-space: nowrap; }
+  td.note { color: var(--ink-2); font-size: 12px; min-width: 200px; }
+  .mark { color: var(--mark); font-weight: 700; }
+  .bar { display: flex; width: 120px; height: 10px; border-radius: 3px; overflow: hidden; background: var(--line); }
+  .bar i { display: block; height: 100%; }
+  .bar-cell { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .bar-cell small { color: var(--ink-3); font-variant-numeric: tabular-nums; min-width: 88px; }
+  .total { font-weight: 700; }
+
+  .notes { color: var(--ink-2); font-size: 13px; margin-top: 24px; }
+  .notes h2 { font-size: 15px; color: var(--ink); margin: 0 0 6px; }
+  .notes ul { margin: 0; padding-left: 20px; }
+  footer { margin-top: 24px; color: var(--ink-3); font-size: 12px; }
+  .theme-btn {
+    float: right; font: inherit; font-size: 12px; color: var(--ink-2); background: var(--surface);
+    border: 1px solid var(--line-2); border-radius: 8px; padding: 3px 10px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <button class="theme-btn" id="theme-btn" type="button">表示: 自動</button>
+    <h1>都市型水害（内水）の棟数ランキング</h1>
+    <p class="lead">
+      2010〜2023年の<a href="https://www.mlit.go.jp/river/toukei_chousa/kasen/suigaitoukei/">水害統計調査</a>から、
+      <strong>都市部</strong>（人口集中地区に住む人が __URBAN_PCT__% 以上）で、
+      <strong>内水・窪地内水による床上＋床下の浸水が __MIN_BUILDINGS__ 棟以上</strong>あった市区町村を、棟数の多い順に並べた。
+      内水浸水想定区域（国土数値情報 A51）の有無と、市街地を覆う都道府県の高解像度標高の有無もあわせて示す。
+    </p>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="controls">
+    <label>都道府県 <select id="f-pref"><option value="">すべて</option></select></label>
+    <label><input type="checkbox" id="f-a51" /> A51 あり</label>
+    <label><input type="checkbox" id="f-dem" /> 県の高解像度標高あり</label>
+    <label><input type="checkbox" id="f-gou" /> 「豪雨・その他」が半分以上</label>
+    <label>検索 <input type="search" id="f-q" placeholder="市区町村名" /></label>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="legend">
+    異常気象の内訳（棟数の割合）:
+    <span style="--c: var(--typhoon)">台風</span>
+    <span style="--c: var(--tsuyu)">梅雨前線</span>
+    <span style="--c: var(--gou)">豪雨・その他</span>
+    <span style="--c: var(--etc)">融雪・高潮など</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th data-key="rank">順位</th>
+          <th data-key="pref">都道府県</th>
+          <th data-key="muni">市区町村</th>
+          <th data-key="yukaue" class="num">床上</th>
+          <th data-key="yukashita" class="num">床下</th>
+          <th data-key="buildings" class="num">合計（棟）</th>
+          <th data-key="gou_share">異常気象の内訳</th>
+          <th data-key="takuchi_share" class="num">宅地の割合</th>
+          <th data-key="years" class="num">年数</th>
+          <th data-key="first_year">期間</th>
+          <th data-key="did_pop_pct" class="num">DID 人口割合</th>
+          <th data-key="has_a51">A51</th>
+          <th data-key="hires_dem_pref">県の高解像度標高</th>
+          <th>備考（政令市の区の内訳）</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <section class="notes">
+    <h2>読み方と注意</h2>
+    <ul>
+      <li>棟数は、水害統計の「一般資産等水害統計基本表」のうち水害原因が「内水」「窪地内水」の記録の、床上浸水と床下浸水の合計。</li>
+      <li>政令市は、水害統計が年によって区で書いたり市でまとめて書いたりするので、区と市の記録を足して市全体で1行にした。区の内訳は備考。</li>
+      <li>「異常気象の内訳」は、異常気象名で分けた棟数の割合。「台風○号及び豪雨」のように混ざる名前は台風に入れた。局地的な短時間強雨は「豪雨・その他」に入ることが多い。</li>
+      <li>「宅地の割合」は、浸水面積（宅地その他＋農地）のうち宅地その他の割合。</li>
+      <li>「年数」は被害の記録があった年の数（政令市は区ごとの最大）。</li>
+      <li>水害統計の「内水」には、河川の水位が上がって排水できなくなった内水も含まれる。短時間強雨による内水だけではない。</li>
+      <li>「県の高解像度標高」は、市街地を覆う都道府県の航空レーザ測量の DEM・DSM・点群がある<strong>都道府県</strong>か。市区町村ごとの被覆は確かめていない。</li>
+      <li>水害統計は市区町村単位の記録で、市区町村の中のどこが浸水したかは分からない。</li>
+    </ul>
+  </section>
+
+  <footer>
+    出典: 国土交通省「水害統計調査」（<a href="https://www.e-stat.go.jp/statistics/00600590">e-Stat</a>）を加工して作成 /
+    国土数値情報（人口集中地区 A16 令和2年、雨水出水浸水想定区域 A51 2025年度版）を加工して作成<br />
+    集計: <a href="https://github.com/shiwaku/naisui-risk-verification/blob/main/scripts/rank_urban_naisui.py">scripts/rank_urban_naisui.py</a> /
+    <a href="https://github.com/shiwaku/naisui-risk-verification">naisui-risk-verification</a> /
+    <a href="../app/">ビューワ</a><br />
+    生成: __GENERATED__
+  </footer>
+</div>
+
+<script>
+const DATA = __DATA__;
+
+const fmt = (n) => Math.round(n).toLocaleString("ja-JP");
+const pct = (x) => `${Math.round(x * 100)}%`;
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+// ---- 表示テーマ（自動 → ライト → ダーク） ----
+const themeBtn = document.getElementById("theme-btn");
+const THEMES = [["", "自動"], ["light", "ライト"], ["dark", "ダーク"]];
+let themeIdx = 0;
+try { themeIdx = Math.max(0, THEMES.findIndex(([k]) => k === (localStorage.getItem("theme") || ""))); } catch {}
+function applyTheme() {
+  const [key, label] = THEMES[themeIdx];
+  if (key) document.documentElement.dataset.theme = key; else delete document.documentElement.dataset.theme;
+  themeBtn.textContent = `表示: ${label}`;
+}
+themeBtn.addEventListener("click", () => {
+  themeIdx = (themeIdx + 1) % THEMES.length;
+  try { localStorage.setItem("theme", THEMES[themeIdx][0]); } catch {}
+  applyTheme();
+});
+applyTheme();
+
+// ---- 集計の見出し ----
+const stats = document.getElementById("stats");
+const statItems = [
+  [DATA.length, "都市型水害の発生地"],
+  [DATA.reduce((s, r) => s + r.buildings, 0), "床上＋床下の合計（棟）"],
+  [DATA.filter((r) => r.has_a51).length, "うち A51 あり"],
+  [DATA.filter((r) => r.gou_share >= 0.5).length, "うち「豪雨・その他」が半分以上"],
+];
+stats.innerHTML = statItems.map(([v, k]) => `<div class="stat"><div class="v">${fmt(v)}</div><div class="k">${k}</div></div>`).join("");
+
+// ---- 絞り込みと並べ替え ----
+const prefSel = document.getElementById("f-pref");
+[...new Set(DATA.map((r) => r.pref))]
+  .sort((a, b) => DATA.find((r) => r.pref === a).pref_code - DATA.find((r) => r.pref === b).pref_code)
+  .forEach((p) => prefSel.insertAdjacentHTML("beforeend", `<option>${esc(p)}</option>`));
+
+const state = { key: "rank", asc: true };
+const $ = (id) => document.getElementById(id);
+
+function bar(r) {
+  const parts = [["typhoon", r.typhoon_share], ["tsuyu", r.tsuyu_share], ["gou", r.gou_share], ["etc", r.etc_share]];
+  const segs = parts.filter(([, v]) => v > 0).map(([c, v]) => `<i style="width:${v * 100}%;background:var(--${c})"></i>`).join("");
+  const label = `台風 ${pct(r.typhoon_share)} / 梅雨 ${pct(r.tsuyu_share)} / 豪雨他 ${pct(r.gou_share)}`;
+  return `<div class="bar-cell" title="${label}"><div class="bar">${segs}</div><small>豪雨他 ${pct(r.gou_share)}</small></div>`;
+}
+
+function render() {
+  const pref = prefSel.value, q = $("f-q").value.trim();
+  let rows = DATA.filter((r) =>
+    (!pref || r.pref === pref) &&
+    (!$("f-a51").checked || r.has_a51) &&
+    (!$("f-dem").checked || r.hires_dem_pref) &&
+    (!$("f-gou").checked || r.gou_share >= 0.5) &&
+    (!q || r.muni.includes(q) || r.wards.includes(q))
+  );
+  const { key, asc } = state;
+  rows = rows.slice().sort((a, b) => {
+    const x = a[key], y = b[key];
+    const c = typeof x === "string" ? x.localeCompare(y, "ja") : (x === y ? 0 : x < y ? -1 : 1);
+    return asc ? c : -c;
+  });
+  $("rows").innerHTML = rows.map((r) => `<tr>
+    <td class="num rank">${r.rank}</td>
+    <td class="pref">${esc(r.pref)}</td>
+    <td class="muni">${esc(r.muni)}</td>
+    <td class="num">${fmt(r.yukaue)}</td>
+    <td class="num">${fmt(r.yukashita)}</td>
+    <td class="num total">${fmt(r.buildings)}</td>
+    <td>${bar(r)}</td>
+    <td class="num">${r.takuchi_share == null ? "–" : pct(r.takuchi_share)}</td>
+    <td class="num">${r.years}</td>
+    <td class="nowrap">${r.first_year === r.last_year ? r.first_year : `${r.first_year}〜${r.last_year}`}</td>
+    <td class="num">${r.did_pop_pct.toFixed(1)}%</td>
+    <td class="center">${r.has_a51 ? '<span class="mark">○</span>' : ""}</td>
+    <td class="center">${r.hires_dem_pref ? '<span class="mark">○</span>' : ""}</td>
+    <td class="note">${esc(r.wards)}</td>
+  </tr>`).join("");
+  $("count").textContent = `${rows.length} / ${DATA.length} 件`;
+  document.querySelectorAll("th[data-key]").forEach((th) => {
+    th.querySelector(".arrow")?.remove();
+    if (th.dataset.key === key) th.insertAdjacentHTML("beforeend", `<span class="arrow">${asc ? "▲" : "▼"}</span>`);
+  });
+}
+
+document.querySelectorAll("th[data-key]").forEach((th) => th.addEventListener("click", () => {
+  const k = th.dataset.key;
+  // 数値の列は多い順から、文字の列と順位は小さい順から
+  if (state.key === k) state.asc = !state.asc;
+  else { state.key = k; state.asc = ["rank", "pref", "muni", "first_year"].includes(k); }
+  render();
+}));
+["f-pref", "f-a51", "f-dem", "f-gou"].forEach((id) => $(id).addEventListener("change", render));
+$("f-q").addEventListener("input", render);
+render();
+</script>
+</body>
+</html>

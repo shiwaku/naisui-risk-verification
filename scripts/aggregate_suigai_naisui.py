@@ -11,6 +11,13 @@
 2014年は1列ずれ、2015年以降は平らに並ぶ）。ただし「水害原因」の列から右の数値の並びは
 どの年も同じなので、見出し行で「市区町村名」「水害原因」の列を探し、そこからの位置で読む。
 「〃」は上の行と同じ値、「合計」は小計の行なので除く。
+
+異常気象名は、1つの異常気象の最初の行にだけ書かれる（下の行は空欄か「〃」）ので、上の行から引き継ぐ。
+名前に含まれる語で、次の区分に分ける（「台風○号及び豪雨」のように複数が混ざる名前は台風に入れる）。
+- 台風: 「台風」を含む
+- 梅雨前線: 「梅雨」を含む
+- 豪雨・その他: 「豪雨」「その他の異常気象」など（局地的な短時間強雨はここに入ることが多い）
+- その他: 融雪・高潮・波浪
 """
 
 from __future__ import annotations
@@ -55,6 +62,19 @@ PREFS = [
 PREF_BY_SHORT = {p if p == "北海道" else p[:-1]: p for p in PREFS}
 PREF_BY_SHORT.update({p: p for p in PREFS})
 
+EVENT_WORDS = re.compile(r"台風|豪雨|梅雨|前線|異常気象|低気圧|大雨|融雪|高潮|波浪|降雨|雷雨")
+
+
+def event_type(name: str) -> str:
+    if "台風" in name:
+        return "台風"
+    if "梅雨" in name:
+        return "梅雨前線"
+    if re.search(r"融雪|高潮|波浪", name) and not re.search(r"豪雨|大雨|降雨", name):
+        return "その他"
+    return "豪雨・その他"
+
+
 # 改ページごとに繰り返される見出しの文字列。市区町村として数えない
 HEADER_WORDS = {"市区町村名", "都道府県名", "水害原因"}
 
@@ -78,9 +98,13 @@ def read_year(path: Path, year: int) -> pd.DataFrame:
     head = next(i for i in range(12) if any(clean(v) == "水害原因" for v in df.iloc[i]))
     cols = [clean(v) for v in df.iloc[head]]
     c_muni, c_cause = cols.index("市区町村名"), cols.index("水害原因")
+    # 「異常気象名」の見出しは「水害原因」と同じ行とは限らない（2010年は1列目の2行目）
+    c_event = next(
+        j for i in range(max(0, head - 2), head + 4) for j, v in enumerate(df.iloc[i]) if clean(v) == "異常気象名"
+    )
 
     records = []
-    pref = muni = ""
+    pref = muni = event = ""
     for _, row in df.iloc[head + 1 :].iterrows():
         cells = [clean(v) for v in row.tolist()]
         # 都道府県は「水害原因」より左のどこかに現れる（年によって列が違う）。現れたら以降に引き継ぐ
@@ -88,12 +112,15 @@ def read_year(path: Path, year: int) -> pd.DataFrame:
             if v in PREF_BY_SHORT:
                 pref = PREF_BY_SHORT[v]
                 break
+        ev = cells[c_event]
+        if ev and ev != "異常気象名" and EVENT_WORDS.search(ev):
+            event = ev
         m, cause = cells[c_muni], cells[c_cause]
         if m and m != "〃" and m not in HEADER_WORDS:
             muni = m
         if cause not in NAISUI_CAUSES or muni in ("", "合計") or not pref:
             continue
-        rec = {"year": year, "pref": pref, "muni": muni, "cause": cause}
+        rec = {"year": year, "pref": pref, "muni": muni, "cause": cause, "event": event, "event_type": event_type(event)}
         rec.update({k: to_num(row.iloc[c_cause + o]) for k, o in OFFSETS.items()})
         records.append(rec)
     return pd.DataFrame(records)
@@ -122,8 +149,15 @@ def main() -> int:
         kubochi_records=("cause", lambda s: int((s == "窪地内水").sum())),
     )
     by["buildings"] = by["yukaue"] + by["yukashita"]
+    by["area_km2"] = g["area_m2"].sum() / 1e6
+    # 異常気象の区分ごとの床上＋床下の棟数
+    rec["b"] = rec["yukaue"] + rec["yukashita"]
+    per_type = rec.pivot_table(index=["pref", "muni"], columns="event_type", values="b", aggfunc="sum", fill_value=0)
+    for t in ("台風", "梅雨前線", "豪雨・その他", "その他"):
+        by[f"buildings_{t}"] = per_type[t] if t in per_type else 0.0
+    rec = rec.drop(columns="b")
     by = by.sort_values("buildings", ascending=False)
-    by["area_takuchi_km2"] = by["area_takuchi_km2"].round(3)
+    by[["area_takuchi_km2", "area_km2"]] = by[["area_takuchi_km2", "area_km2"]].round(3)
     by.to_csv(OUT / "suigai_naisui_by_muni.csv", encoding="utf-8-sig")
 
     print(f"\n{rec['year'].min()}〜{rec['year'].max()}年、内水被害のある市区町村 {len(by)}")

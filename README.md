@@ -12,6 +12,15 @@
 標高データ（都道府県の航空レーザ測量成果）の候補は [`docs/elevation-sources.md`](docs/elevation-sources.md)、
 検証対象地域の選定は [`docs/study-area-selection.md`](docs/study-area-selection.md) にまとめている。
 
+## 都市型水害（内水）の棟数ランキング
+
+<https://shiwaku.github.io/naisui-risk-verification/ranking/>
+
+2010〜2023年の水害統計調査から、都市部（人口集中地区に住む人が 50% 以上）で内水・窪地内水による
+床上＋床下の浸水が 100 棟以上あった市区町村を、棟数の多い順に並べた表。異常気象の内訳（台風・梅雨前線・豪雨その他）、
+宅地の割合、内水浸水想定区域（A51）の有無などを並べ替え・絞り込みできる。
+作り方は [`docs/study-area-selection.md`](docs/study-area-selection.md) §4、上位50の表は [`docs/urban-naisui-ranking.md`](docs/urban-naisui-ranking.md)。
+
 ## ビューワ
 
 標高（Mapterhorn）、水害履歴（浸水実績）、地形分類（国土地理院）、内水浸水想定区域（重ねるハザードマップ）を
