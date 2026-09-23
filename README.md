@@ -3,7 +3,8 @@
 内水ハザードマップが整備されていない地域について、公開されている地形データ（標高・地形分類）から
 **内水氾濫が起こりやすい場所をどこまで推定できるか**を、浸水実績と既存の内水浸水想定区域を使って検証する。
 
-調査の背景・データ・手法は [`docs/naisui-research-notes.md`](docs/naisui-research-notes.md) にまとめている。
+調査の背景・データ・当初案は [`docs/naisui-research-notes.md`](docs/naisui-research-notes.md)、
+既存手法の文献調査と手法選定は [`docs/method-survey.md`](docs/method-survey.md) にまとめている。
 
 ## ビューワ
 

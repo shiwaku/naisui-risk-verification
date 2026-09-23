@@ -153,6 +153,8 @@ DEMとの違い: DEMの窪地は「現在の地表の形」、地形分類は「
 
 ## 6. 既存事例
 
+> 2015〜2026年の手法の動向と、このデータに合う手法の選定は [method-survey.md](method-survey.md) にまとめた。
+
 - **国交省 内水浸水想定区域図作成マニュアル（案）**（令和3年7月）
   https://www.mlit.go.jp/river/shishin_guideline/pdf/naisui_manual.pdf
   - 地形情報や浸水実績を活用して内水浸水を想定する手法が、正式に組み込まれている。
