@@ -14,7 +14,8 @@
 水害統計は市区町村単位の記録で、市区町村の中の位置は分からない。そのため判定も市区町村単位で行う。
 付ける列:
 - has_a51: 国土数値情報 A51（雨水出水浸水想定区域）がある。政令市の区は市のコードで判定する
-- hires_dem_pref: 市街地を覆う都道府県の高解像度標高がある都道府県（docs/elevation-sources.md §2）
+- hires_dem_pref / hires_dem: 市街地を覆う都道府県の高解像度標高がある都道府県か、その解像度と種類
+  （docs/elevation-sources.md §2）
 """
 
 from __future__ import annotations
@@ -40,8 +41,17 @@ PREFS = [
     "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県",
 ]
 
-# 市街地を覆う高解像度の標高（LP の DEM・DSM・点群）がある都道府県（docs/elevation-sources.md §2 で ◎）
-HIRES_DEM_PREFS = {"東京都", "静岡県", "山梨県", "神奈川県", "兵庫県", "鳥取県"}
+# 市街地を覆う高解像度の標高（LP の DEM・DSM・点群）がある都道府県と、その解像度（docs/elevation-sources.md §2 で ◎）。
+# G空間情報センターの各データのリソース名・説明で確かめた値（2026-09-23）
+HIRES_DEM = {
+    "東京都": "DEM 0.25m・0.5m（点群 LAS）",
+    "静岡県": "DEM 0.5m（点群 LAS）",
+    "山梨県": "DEM・DSM 0.5m（点群 LAS）",
+    "神奈川県": "DEM 0.5m（R4 範囲は 1m・DSM も）",
+    "兵庫県": "DEM・DSM 1m",
+    "鳥取県": "DEM 0.5m",
+}
+HIRES_DEM_PREFS = set(HIRES_DEM)
 
 
 def read_did() -> pd.DataFrame:
@@ -88,7 +98,8 @@ def main() -> int:
     naisui = pd.read_csv(OUT / "suigai_naisui_by_muni.csv")
     did = read_did()
 
-    a51_codes = set(pd.read_csv(OUT / "municipalities.csv", dtype={"code": str})["code"])
+    a51 = pd.read_csv(OUT / "municipalities.csv", dtype={"code": str}).set_index("code")
+    a51_codes = set(a51.index)
     ward_to_city = city_code_of_ward(did)
 
     t = naisui.merge(did, on=["pref", "muni"], how="left")
@@ -97,13 +108,17 @@ def main() -> int:
     t["urban"] = t["did_pop_pct"] >= URBAN_DID_POP_PCT
     t["urban_naisui"] = t["urban"] & (t["buildings"] >= MIN_BUILDINGS)
     t["has_a51"] = t["code"].isin(a51_codes) | t["code"].map(ward_to_city).isin(a51_codes)
+    # 内水浸水想定区域の面積（km²）。政令市の区は、市として収録されている面積を入れる
+    a51_code = t["code"].where(t["code"].isin(a51_codes), t["code"].map(ward_to_city))
+    t["a51_km2"] = a51_code.map(a51["a51_km2"])
     t["hires_dem_pref"] = t["pref"].isin(HIRES_DEM_PREFS)
+    t["hires_dem"] = t["pref"].map(HIRES_DEM).fillna("")
 
     cols = [
         "pref", "muni", "code", "did_pop", "did_pop_pct", "urban", "urban_naisui",
         "records", "years", "first_year", "last_year", "area_takuchi_km2", "area_km2", "yukaue", "yukashita", "buildings",
         "buildings_台風", "buildings_梅雨前線", "buildings_豪雨・その他", "buildings_その他",
-        "kubochi_records", "has_a51", "hires_dem_pref",
+        "kubochi_records", "has_a51", "a51_km2", "hires_dem_pref", "hires_dem",
     ]
     t = t[cols].sort_values(["urban_naisui", "buildings"], ascending=[False, False])
     t.to_csv(OUT / "urban_naisui_municipalities.csv", index=False, encoding="utf-8-sig")

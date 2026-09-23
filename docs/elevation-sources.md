@@ -29,9 +29,9 @@
 | 都道府県 | データ | 解像度・形式 | 市街地 | ライセンス | 内水浸水想定区域がある市町村 |
 |---|---|---|---|---|---|
 | 東京都 | [多摩地域点群](https://www.geospatial.jp/ckan/dataset/tokyopc-tama-2023)、[区部点群](https://www.geospatial.jp/ckan/dataset/tokyopc-23ku-2024)（デジタルツイン実現プロジェクト） | LAS（16点/m²以上）、グリッド 0.5m（参考 0.25m）、JGD2011 IX系 | ◎ | CC BY 4.0 | 昭島市、福生市 |
-| 静岡県 | [VIRTUAL SHIZUOKA 中・西部](https://www.geospatial.jp/ckan/dataset/virtual-shizuoka-mw) ほか | LAS（LP＋MMS）、グラウンドデータ、グリッドデータ、JGD2011 VIII系 | ◎ | CC BY 4.0 / ODbL | 焼津市 |
-| 山梨県 | [山梨県点群データ（航空LP・MMS）](https://www.geospatial.jp/ckan/dataset/yamanashi-pointcloud-2024) | LAS、県全域、JGD2011 VIII系 | ◎ | CC BY 4.0 / ODbL | 甲府市 |
-| 神奈川県 | [令和3年度 横浜南部・湘南・横須賀三浦](https://www.geospatial.jp/ckan/dataset/kanagawa-2021-pointcloud) ほか（R1〜R6） | 点群 | ◎ | CC BY 4.0 | 横須賀市、平塚市、綾瀬市 |
+| 静岡県 | [VIRTUAL SHIZUOKA 中・西部](https://www.geospatial.jp/ckan/dataset/virtual-shizuoka-mw) ほか | LAS（LP＋MMS）、グラウンドデータ、グリッド（DEM）0.5m、JGD2011 VIII系 | ◎ | CC BY 4.0 / ODbL | 焼津市 |
+| 山梨県 | [山梨県点群データ（航空LP・MMS）](https://www.geospatial.jp/ckan/dataset/yamanashi-pointcloud-2024) | LAS、グリッド DEM・DSM 0.5m（txt・GeoTIFF）、県全域、JGD2011 VIII系 | ◎ | CC BY 4.0 / ODbL | 甲府市 |
+| 神奈川県 | [令和3年度 横浜南部・湘南・横須賀三浦](https://www.geospatial.jp/ckan/dataset/kanagawa-2021-pointcloud) ほか（R1〜R6） | LAS・TXT、グリッド（DEM）0.5m（CSV・メッシュ形式）。[令和4年度 横浜北部・川崎](https://www.geospatial.jp/ckan/dataset/kanagawa-2022-pointcloud)は 1m グリッドと DSM も | ◎ | CC BY 4.0 | 横須賀市、平塚市、綾瀬市 |
 | 兵庫県 | [全域 DEM](https://www.geospatial.jp/ckan/dataset/2010-2018-hyogo-geo-dem)、[全域 DSM](https://www.geospatial.jp/ckan/dataset/2010-2018-hyogo-geo-dsm)（2010〜2018年度） | 1m、XYZ テキスト、JGD2011 V系 | ◎ | CC BY 4.0（ページ内の表示） | 尼崎市、たつの市、上郡町 |
 | 兵庫県 | [50cm DEM](https://www.geospatial.jp/ckan/dataset/2022-hyougo-geo-dem)・[DSM](https://www.geospatial.jp/ckan/dataset/2022-hyougo-geo-dsm)（2021〜2022年度）、[Terrain-RGB タイル](https://www.geospatial.jp/ckan/dataset/dem05_hyogo) | 0.5m | × 森林が中心（尼崎・たつの・神戸の市街地のタイルは空） | CC BY 4.0 | ― |
 | 鳥取県 | [数値標高モデル(DEM)0.5m](https://www.geospatial.jp/ckan/dataset/dem05_tottori) | 0.5m GeoTIFF、Terrain-RGB・PNG 標高タイル | ◎（鳥取駅周辺にデータあり） | 政府標準利用規約 | 鳥取市 |
@@ -88,6 +88,5 @@
 ## 5. 未確認事項
 
 - 富山・京都・愛媛の 0.5m DEM が市街地を覆っているか（データ範囲図の PDF で確認する）
-- 神奈川の点群にグリッド（DEM）が含まれるか、LAS だけか
 - 各データの利用規約で、測量に用いる場合と、解析・可視化に用いる場合の扱いの違い
 - 大阪府・愛知県など、G空間情報センター以外の県独自ポータルで公開されている標高データ（例: 広島県 DoboX）
