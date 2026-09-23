@@ -4,7 +4,8 @@
 **内水氾濫が起こりやすい場所をどこまで推定できるか**を、浸水実績と既存の内水浸水想定区域を使って検証する。
 
 調査の背景・データ・当初案は [`docs/naisui-research-notes.md`](docs/naisui-research-notes.md)、
-既存手法の文献調査と手法選定は [`docs/method-survey.md`](docs/method-survey.md) にまとめている。
+既存手法の文献調査と手法選定は [`docs/method-survey.md`](docs/method-survey.md)、
+標高データ（都道府県の航空レーザ測量成果）の候補は [`docs/elevation-sources.md`](docs/elevation-sources.md) にまとめている。
 
 ## ビューワ
 
