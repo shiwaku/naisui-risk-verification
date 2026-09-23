@@ -87,6 +87,14 @@ import {
   type LandformKind,
   type LandformMode,
 } from './landform'
+import {
+  DEFAULT_NAISUI_OPACITY,
+  NAISUI_ID,
+  NAISUI_LEGEND,
+  NAISUI_SOURCE,
+  naisuiLayer,
+  naisuiSourceSpec,
+} from './naisui'
 import { applyThemeAttr, initialTheme, type Theme } from './theme'
 import './style.css'
 
@@ -116,6 +124,10 @@ const LANDFORM_KINDS: LandformKind[] = ['natural', 'artificial']
 const landformOn: Record<LandformKind, boolean> = { natural: true, artificial: true }
 let landformMode: LandformMode = 'naisui'
 let landformOpacity = DEFAULT_LANDFORM_OPACITY
+
+/** 内水浸水想定区域（重ねるハザードマップ）。検証の正解データとして既定で重ねる。 */
+let naisuiOn = true
+let naisuiOpacity = DEFAULT_NAISUI_OPACITY
 
 /**
  * DEM タイルの配信方式。
@@ -278,6 +290,7 @@ const OWN_LAYER_IDS = new Set([
   COVERAGE_ID,
   LANDFORM_FILL_ID.natural,
   LANDFORM_FILL_ID.artificial,
+  NAISUI_ID,
 ])
 
 /**
@@ -326,31 +339,34 @@ function whenStyleReady(fn: () => void): void {
 
 /**
  * 自前レイヤーの積み順（下から）:
- *   背景地図 → 段彩 → 地形分類（自然・人工）→ 陰影起伏 → 浸水域（塗り・輪郭）→ 等高線 → 背景地図のラベル
+ *   背景地図 → 段彩 → 地形分類（自然・人工）→ 陰影起伏 → 内水浸水想定区域
+ *   → 浸水域（塗り・輪郭）→ 等高線 → 背景地図のラベル
  *
  * 段彩を陰影起伏の下に置くのが要点。陰影が段彩の上に乗ることで陰影段彩図になる。
  * 地形分類も同じ理由で陰影起伏の下に置く（分類の色に陰影が乗り、分類と起伏を
- * 一度に読める）。浸水域はその上に載せ、「どの地形分類の上で浸水したか」を読む。
+ * 一度に読める）。内水浸水想定区域は地形分類の上に載せ、「推定（地形）と正解（想定区域）」
+ * を見比べる。浸水域はさらにその上に半透明の輪郭つきで載せ、想定区域の段を透かして読む。
  * 等高線を浸水域の上に置くのは、浸水域を透かして地形の高低を追えるようにするため。
  *
- * 各グループは「自分より上にあるグループの先頭」の手前に差し込む。こうすると
- * 陰影起伏や等高線を切り替えても浸水域のレイヤーに触らずに済む。以前は毎回
- * 全部外して積み直していたため、地形のトグルを押すたびに 14,585 件の
- * 浸水域が再構築され、そのあいだ画面が止まっていた。
+ * 各グループは「自分より上にあるグループのうち、いま地図にある最初のレイヤー」の
+ * 手前に差し込む。こうすると陰影起伏や等高線を切り替えても浸水域のレイヤーに
+ * 触らずに済む。以前は毎回全部外して積み直していたため、地形のトグルを押すたびに
+ * 14,585 件の浸水域が再構築され、そのあいだ画面が止まっていた。
  */
-function beforeIdFor(
-  group: 'relief' | 'landform' | 'hillshade' | 'sinsui' | 'contour',
-): string | undefined {
-  const labels = labelBeforeId()
-  const contour = map.getLayer(CONTOUR_LINE_ID) ? CONTOUR_LINE_ID : labels
-  if (group === 'contour') return labels
-  if (group === 'sinsui') return contour
-  const hillshade = map.getLayer(FILL_ID) ? FILL_ID : contour
-  if (group === 'hillshade') return hillshade
-  const landform = map.getLayer(HILLSHADE_ID) ? HILLSHADE_ID : hillshade
-  if (group === 'landform') return landform
-  const firstLandform = LANDFORM_KINDS.map((k) => LANDFORM_FILL_ID[k]).find((id) => map.getLayer(id))
-  return firstLandform ?? landform
+const LAYER_GROUPS = {
+  relief: [RELIEF_ID],
+  landform: [LANDFORM_FILL_ID.natural, LANDFORM_FILL_ID.artificial],
+  hillshade: [HILLSHADE_ID],
+  naisui: [NAISUI_ID],
+  sinsui: [FILL_ID, OUTLINE_ID],
+  contour: [CONTOUR_LINE_ID, CONTOUR_TEXT_ID],
+} as const
+type LayerGroup = keyof typeof LAYER_GROUPS
+const GROUP_ORDER = Object.keys(LAYER_GROUPS) as LayerGroup[]
+
+function beforeIdFor(group: LayerGroup): string | undefined {
+  const above = GROUP_ORDER.slice(GROUP_ORDER.indexOf(group) + 1).flatMap((g) => LAYER_GROUPS[g])
+  return above.find((id) => map.getLayer(id)) ?? labelBeforeId()
 }
 
 /**
@@ -406,6 +422,19 @@ function applyLandform(): void {
       }
       map.addLayer(landformLayer(kind, landformMode, landformOpacity), before)
     }
+  })
+}
+
+/** 内水浸水想定区域。 */
+function applyNaisui(): void {
+  whenStyleReady(() => {
+    removeLayer(NAISUI_ID)
+    if (!naisuiOn) {
+      removeSource(NAISUI_SOURCE)
+      return
+    }
+    if (!map.getSource(NAISUI_SOURCE)) map.addSource(NAISUI_SOURCE, naisuiSourceSpec())
+    map.addLayer(naisuiLayer(naisuiOpacity), beforeIdFor('naisui'))
   })
 }
 
@@ -480,6 +509,7 @@ function applyLayers(): void {
   applyRelief()
   applyLandform()
   applyHillshade()
+  applyNaisui()
   applySinsuiLayers()
   applyContours()
   applyTerrain()
@@ -905,6 +935,53 @@ contoursOnEl.addEventListener('change', () => {
   applyContours()
 })
 
+// ---- 内水浸水想定区域 ----
+
+const naisuiOnEl = el<HTMLInputElement>('naisui-on')
+const naisuiOptsEl = el('naisui-opts')
+const naisuiOpacityEl = el<HTMLInputElement>('naisui-opacity')
+const naisuiOpacityValEl = el('naisui-opacity-val')
+const naisuiLegendEl = el<HTMLUListElement>('naisui-legend')
+
+naisuiOnEl.addEventListener('change', () => {
+  naisuiOn = naisuiOnEl.checked
+  naisuiOptsEl.hidden = !naisuiOn
+  applyNaisui()
+})
+
+naisuiOpacityEl.addEventListener('input', () => {
+  naisuiOpacity = Number(naisuiOpacityEl.value)
+  naisuiOpacityValEl.textContent = `${Math.round(naisuiOpacity * 100)}%`
+  if (map.getLayer(NAISUI_ID)) map.setPaintProperty(NAISUI_ID, 'raster-opacity', naisuiOpacity)
+})
+
+/** 想定浸水深の凡例。旧凡例の区分は見出しを分けて後ろに置く。 */
+function buildNaisuiLegend(): void {
+  const row = (color: string, label: string): HTMLLIElement => {
+    const li = document.createElement('li')
+    const sw = document.createElement('span')
+    sw.className = 'sw'
+    sw.style.background = color
+    const lb = document.createElement('span')
+    lb.className = 'lg-label'
+    lb.textContent = label
+    li.append(sw, lb)
+    return li
+  }
+  const head = (text: string): HTMLLIElement => {
+    const li = document.createElement('li')
+    li.className = 'lg-group'
+    li.textContent = text
+    return li
+  }
+  naisuiLegendEl.replaceChildren(
+    head('想定浸水深'),
+    ...NAISUI_LEGEND.filter((l) => !l.old).map((l) => row(l.color, l.label)),
+    head('旧凡例で作成された市町村'),
+    ...NAISUI_LEGEND.filter((l) => l.old).map((l) => row(l.color, l.label)),
+  )
+}
+
 // ---- 地形分類 ----
 
 const landformOnEl: Record<LandformKind, HTMLInputElement> = {
@@ -1156,6 +1233,11 @@ hillshadeExagValEl.textContent = hillshadeExag.toFixed(2)
 terrainExagValEl.textContent = terrainExag.toFixed(2)
 reliefOpacityValEl.textContent = `${Math.round(reliefOpacity * 100)}%`
 buildReliefLegend()
+buildNaisuiLegend()
+naisuiOnEl.checked = naisuiOn
+naisuiOptsEl.hidden = !naisuiOn
+naisuiOpacityEl.value = String(naisuiOpacity)
+naisuiOpacityValEl.textContent = `${Math.round(naisuiOpacity * 100)}%`
 buildLandformModes()
 renderLandformLegend()
 renderLandformZoomNote()
