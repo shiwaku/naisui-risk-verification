@@ -870,6 +870,10 @@ hillshadeOnEl.addEventListener('change', () => {
   applyHillshade()
 })
 
+const hillshadeDescEl = el('hillshade-desc')
+const renderHillshadeDesc = (): void => {
+  hillshadeDescEl.textContent = HILLSHADE_METHODS.find((m) => m.key === hillshadeMethod)?.desc ?? ''
+}
 for (const { key, label } of HILLSHADE_METHODS) {
   const opt = document.createElement('option')
   opt.value = key
@@ -877,8 +881,10 @@ for (const { key, label } of HILLSHADE_METHODS) {
   hillshadeMethodEl.append(opt)
 }
 hillshadeMethodEl.value = hillshadeMethod
+renderHillshadeDesc()
 hillshadeMethodEl.addEventListener('change', () => {
   hillshadeMethod = hillshadeMethodEl.value as HillshadeMethod
+  renderHillshadeDesc()
   // 算出方法ごとに見え方の落ち着く強調が違うため、プリセット値へ戻す
   hillshadeExag = HILLSHADE_PRESETS[hillshadeMethod].exaggeration
   hillshadeExagEl.value = String(hillshadeExag)
