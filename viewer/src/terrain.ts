@@ -37,12 +37,37 @@ export const DEM_MODES: { key: DemMode; label: string }[] = [
 /** MapLibre 5.6 の陰影起伏の算出方法。 */
 export type HillshadeMethod = 'igor' | 'standard' | 'basic' | 'combined' | 'multidirectional'
 
-export const HILLSHADE_METHODS: { key: HillshadeMethod; label: string }[] = [
-  { key: 'standard', label: 'standard（既定）' },
-  { key: 'igor', label: 'igor（やわらか）' },
-  { key: 'basic', label: 'basic' },
-  { key: 'combined', label: 'combined' },
-  { key: 'multidirectional', label: 'multidirectional' },
+/**
+ * 陰影起伏の算出方法。英語の方式名だけでは違いが分からないので、日本語の名前と
+ * 1行の説明を付ける。説明は MapLibre スタイル仕様の hillshade-method の定義に沿う
+ * （basic / combined / igor は GDAL の gdaldem の既定・-combined・-igor に相当）。
+ */
+export const HILLSHADE_METHODS: { key: HillshadeMethod; label: string; desc: string }[] = [
+  {
+    key: 'standard',
+    label: '標準（standard・既定）',
+    desc: 'MapLibre の従来からの陰影。北北西（335°）から光を当てたような、見慣れた陰影になる。',
+  },
+  {
+    key: 'igor',
+    label: 'やわらか（igor）',
+    desc: '下に重ねた地図や段彩を邪魔しにくい、控えめな陰影。斜面の明暗が強く出すぎない。',
+  },
+  {
+    key: 'basic',
+    label: '基本（basic）',
+    desc: '光と斜面の角度だけで明るさを決める単純な陰影（GDAL の gdaldem の既定と同じ計算）。',
+  },
+  {
+    key: 'combined',
+    label: '傾斜強調（combined）',
+    desc: '傾斜が急なほど暗くなる陰影。平らな所は明るく残るので、崖や段丘の縁が目立つ。',
+  },
+  {
+    key: 'multidirectional',
+    label: '多方向・色つき（multidirectional）',
+    desc: '西・北西・北・北東の4方向から色の違う光を当てる。斜面がどちらを向いているかが色で分かる。',
+  },
 ]
 
 /** multidirectional の配列指定は 5.6 の paint 型に無いため緩く持つ。 */
