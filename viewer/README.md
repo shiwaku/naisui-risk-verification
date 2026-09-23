@@ -1,8 +1,9 @@
 # 内水リスク検証ビューワ
 
-標高（Mapterhorn）・水害履歴（浸水実績）・地形分類（国土地理院）を MapLibre GL JS で重ねる Web ビューワ。
+標高（Mapterhorn）・水害履歴（浸水実績）・地形分類（国土地理院）・内水浸水想定区域（重ねるハザードマップ）を
+MapLibre GL JS で重ねる Web ビューワ。
 [shiwaku/ksj-suigai-rireki-converter](https://github.com/shiwaku/ksj-suigai-rireki-converter) の
-`viewer/`（浸水実績 + Mapterhorn 地形）を土台にし、地形分類のレイヤーを加えた。
+`viewer/`（浸水実績 + Mapterhorn 地形）を土台にし、地形分類と内水浸水想定区域のレイヤーを加えた。
 浸水実績のタイル（PMTiles）とイベント索引（`public/events.json`）は同リポジトリの変換結果をそのまま使う。
 
 公開先: <https://shiwaku.github.io/naisui-risk-verification/app/>
@@ -14,6 +15,7 @@
 | 浸水域の表示 | 14,585 件 / 60 イベント（1896〜2019 年）。塗りと輪郭の2枚、不透明度スライダー付き |
 | 成因 | **すべて / 台風 / 大雨・その他** のセグメント。塗り分けと絞り込みを兼ねる（台風 9,891 件 / 大雨・その他 4,694 件） |
 | イベント単位 | 60 イベントを**検索して**1件に絞り、その範囲へ移動。選択は URL に載る |
+| 内水浸水想定区域 | 重ねるハザードマップの統合版ラスタタイル（z2〜17）。不透明度と想定浸水深の凡例（旧凡例の区分も）つき |
 | 地形分類（国土地理院） | 自然地形・人工地形を個別に表示。**内水関連のみ / すべて** のセグメントで絞り込み、凡例つき。クリックで土地の成り立ちと自然災害リスクを表示（浸水域と同じポップアップにまとめる）。ズーム 13 以上 |
 | 地形（Mapterhorn） | **段彩**（標高レンジ選択・凡例つき）/ 陰影起伏（5方式・強調可変）/ 3D地形（起伏倍率可変）/ 等高線。段彩＋陰影起伏で陰影段彩図になる。**画面中央とクリック地点の DEM の細かさ**（1m / 5m / 10m メッシュ）を表示 |
 | 背景地図 | 淡色 / 標準（地理院 最適化ベクトルタイル）/ 写真（地理院シームレス空中写真）/ 白図 |
@@ -119,6 +121,7 @@ viewer/
     terrain.ts          Mapterhorn の DEM（陰影起伏 / 3D地形 / 等高線）
     relief.ts           段彩（DEM をピクセル単位で色に置き換える relief:// プロトコル）
     coverage.ts         DEM の被覆（地点ごとにどの細かさの DEM が使われているか）
+    naisui.ts           内水浸水想定区域（重ねるハザードマップのラスタタイル）
     landform.ts         地形分類（GeoJSON タイル → MVT の landform:// プロトコル・レイヤー・凡例）
     landform-codes.json 地形分類のコード表（生成物・コミット対象）
     basemap.ts          背景地図の切替とダーク化
@@ -158,10 +161,16 @@ GitHub Pages で `main` ブランチのルートを配信し、ビューワは�
   → 段彩
   → 地形分類（自然地形 → 人工地形）
   → 陰影起伏
+  → 内水浸水想定区域
   → 浸水域（塗り・輪郭）
   → 等高線
 背景地図の注記（地名・河川名）
 ```
+
+内水浸水想定区域は地形分類の上、浸水域の下に置く。地形分類（推定の材料）と想定区域（正解データ）を
+見比べ、浸水域は半透明の輪郭つきで上に載せて想定区域の段を透かして読む。
+積み順は `main.ts` の `LAYER_GROUPS` に1か所で持ち、各グループは「自分より上のグループのうち
+いま地図にある最初のレイヤー」の手前に差し込む。
 
 地形分類は段彩と同じく陰影起伏の下に置く。分類の色に陰影が乗り、分類と起伏を一度に読める。
 人工地形（盛土地・干拓地など）は自然地形の上に重ねる（地理院地図と同じ順）。
@@ -181,6 +190,23 @@ GitHub Pages で `main` ブランチのルートを配信し、ビューワは�
 なお「段彩を背景地図の線画より下に敷いて河川や道路を鮮明に残す」案は採らなかった。
 市街地では建築物の不透明な塗りに段彩が埋まり、微小な窪地を読む目的と両立しない。
 段彩は既定 55% なので河川・道路は透けて見える。
+
+### 内水浸水想定区域（重ねるハザードマップ）
+
+検証の正解データ。重ねるハザードマップのオープンデータ配信（統合版）
+`https://disaportaldata.gsi.go.jp/raster/02_naisui_data/{z}/{x}/{y}.png` をラスタのまま重ねる
+（[配信一覧](https://disaportal.gsi.go.jp/hazardmapportal/hazardmap/copyright/opendata.html#naisui)）。
+
+- 掲載はオープンデータ化を許可した市町村だけ（2026-09 時点で 65 市町村、[掲載状況](https://disaportal.gsi.go.jp/hazardmapportal/hazardmap/copyright/naisui.html)）。
+  国土数値情報 A51 とは収録範囲が違うので、定量評価には A51 も併用する
+- 浸水深 0〜0.1m の範囲は表示されない（重ねるハザードマップの統一基準）
+- 河川の氾濫・高潮による浸水は考慮していない
+
+凡例の色は配信元の凡例画像（`img/naisui_legend.png`）から読み取った。旧凡例（0.1〜0.3m / 0.5〜1m）で
+作られた市町村があるため、それも凡例に並べる。`raster-resampling: nearest` にしているのは、
+補間で段の境界に凡例にない中間色が出るため。ラスタなのでクリックで浸水深は引けない。
+
+出典は「ハザードマップポータルサイト」と表記する（[出典の記載方法](https://disaportal.gsi.go.jp/hazardmapportal/hazardmap/copyright/copyright.html#shutten)）。
 
 ### 地形分類（国土地理院 ベクトルタイル提供実験）
 
@@ -427,6 +453,7 @@ UI 側では、操作の重さに応じて処理を分けている。`setFilter`
 ## 出典
 
 - 浸水実績: [国土数値情報（水害履歴・浸水実績）国土交通省](https://nlftp.mlit.go.jp/ksj/) を加工して作成
+- 内水浸水想定区域: 出典：「[ハザードマップポータルサイト](https://disaportal.gsi.go.jp/hazardmapportal/hazardmap/copyright/opendata.html#naisui)」（作成者は各市町村）
 - 地形分類: [国土地理院 ベクトルタイル提供実験（地形分類）](https://github.com/gsi-cyberjapan/experimental_landformclassification)。提供実験であり基本測量成果ではない。表示されるリスクは分類ごとの一般的な傾向
 - 地形: [Mapterhorn](https://mapterhorn.com/)（[attribution](https://mapterhorn.com/attribution)）
 - 段彩の実装: [gsi-cyberjapan/3dpc-3dtiles](https://github.com/gsi-cyberjapan/3dpc-3dtiles)（国土地理院 点群タイル閲覧サイト）を参考。ピクセル走査は[全国Ｑ地図](https://github.com/qchizu/qchizu_maplibre)（MIT license, Copyright 2024 全国Ｑ地図管理者）由来

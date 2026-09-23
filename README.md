@@ -7,14 +7,15 @@
 
 ## ビューワ
 
-標高（Mapterhorn）、水害履歴（浸水実績）、地形分類（国土地理院）を1枚の地図に重ね、
-「浸水した場所がどんな地形の上にあるか」を目で確かめるための Web ビューワ。
+標高（Mapterhorn）、水害履歴（浸水実績）、地形分類（国土地理院）、内水浸水想定区域（重ねるハザードマップ）を
+1枚の地図に重ね、「浸水した場所・浸水が想定される場所がどんな地形の上にあるか」を目で確かめるための Web ビューワ。
 
 公開先: <https://shiwaku.github.io/naisui-risk-verification/app/>
 
 | レイヤー | 内容 |
 |---|---|
 | 浸水実績 | 国土数値情報 水害履歴（1896〜2019年、14,585件）。成因（台風 / 大雨・その他）で塗り分け、イベント単位で絞り込める |
+| 内水浸水想定区域 | 重ねるハザードマップの内水（雨水出水）浸水想定区域（統合版ラスタタイル）。検証の正解データとして見比べる。掲載はオープンデータ化を許可した市町村のみ |
 | 地形分類 | 国土地理院 ベクトルタイル提供実験（地形分類）の自然地形・人工地形。**内水に関係が深い分類だけ**に絞って表示できる |
 | 標高 | Mapterhorn の地形タイル（基盤地図情報 DEM を含む）。段彩（0〜5m まで狭められる）・陰影起伏・等高線・3D地形 |
 
@@ -38,6 +39,7 @@ npm run build    # 検証を通してから ../app/ へビルド
 ## 出典
 
 - 浸水実績: [国土数値情報（水害履歴・浸水実績）国土交通省](https://nlftp.mlit.go.jp/ksj/) を加工して作成（変換: [shiwaku/ksj-suigai-rireki-converter](https://github.com/shiwaku/ksj-suigai-rireki-converter)）
+- 内水浸水想定区域: 出典：「[ハザードマップポータルサイト](https://disaportal.gsi.go.jp/hazardmapportal/hazardmap/copyright/opendata.html#naisui)」（作成者は各市町村）
 - 地形分類: [国土地理院 ベクトルタイル提供実験（地形分類）](https://github.com/gsi-cyberjapan/experimental_landformclassification)（[解説](https://www.gsi.go.jp/bousaichiri/lfc_index.html)）。[国土地理院コンテンツ利用規約](https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html)に従って利用
 - 標高: [Mapterhorn](https://mapterhorn.com/)（[attribution](https://mapterhorn.com/attribution)）
 - 背景地図: [国土地理院 最適化ベクトルタイル](https://github.com/gsi-cyberjapan/optimal_bvmap) / [地理院タイル](https://maps.gsi.go.jp/development/ichiran.html)

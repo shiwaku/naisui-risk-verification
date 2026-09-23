@@ -85,6 +85,27 @@
         <p id="event-note" class="note"></p>
       </div>
 
+      <!-- ---- 内水浸水想定区域（重ねるハザードマップ） ---- -->
+      <div class="field">
+        <div class="field-head">
+          <span class="field-label">内水浸水想定区域</span>
+        </div>
+        <label class="toggle">
+          <input id="naisui-on" type="checkbox" checked />
+          <span class="switch"></span>
+          <span class="t-label">想定区域を表示</span>
+        </label>
+        <div id="naisui-opts">
+          <div class="slider-row">
+            <label for="naisui-opacity">不透明度</label>
+            <input id="naisui-opacity" type="range" min="0.1" max="1" step="0.05" value="0.75" />
+            <span id="naisui-opacity-val" class="op-val">75%</span>
+          </div>
+          <ul id="naisui-legend" class="legend"></ul>
+          <p class="note">重ねるハザードマップの内水（雨水出水）浸水想定区域。検証の正解データとして、地形分類や浸水実績と見比べる。掲載はオープンデータ化を許可した市町村だけ（<a href="https://disaportal.gsi.go.jp/hazardmapportal/hazardmap/copyright/naisui.html" target="_blank" rel="noopener">掲載状況</a>）で、浸水深 0〜0.1m の範囲は表示されない。河川の氾濫・高潮による浸水は含まない。</p>
+        </div>
+      </div>
+
       <!-- ---- 地形分類（国土地理院） ---- -->
       <div class="field">
         <div class="field-head">
@@ -179,6 +200,7 @@
     <footer class="panel-foot">
       <p class="disclaimer">本サイトは個人が作成・配信するものであり、国土交通省の公式サイトではありません。浸水実績は当時の資料に基づく記録で、今後の浸水範囲を示すものではありません。</p>
       データ: <a href="https://nlftp.mlit.go.jp/ksj/" target="_blank" rel="noopener">国土数値情報（水害履歴・浸水実績）国土交通省</a><br />
+      内水浸水想定区域: <a href="https://disaportal.gsi.go.jp/hazardmapportal/hazardmap/copyright/opendata.html#naisui" target="_blank" rel="noopener">「ハザードマップポータルサイト」</a><br />
       地形分類: <a href="https://www.gsi.go.jp/bousaichiri/lfc_index.html" target="_blank" rel="noopener">国土地理院 ベクトルタイル提供実験（地形分類）</a><br />
       地形: <a href="https://mapterhorn.com/" target="_blank" rel="noopener">Mapterhorn</a>（<a href="https://mapterhorn.com/attribution" target="_blank" rel="noopener">attribution</a>）<br />
       背景: <a href="https://github.com/gsi-cyberjapan/optimal_bvmap" target="_blank" rel="noopener">国土地理院 最適化ベクトルタイル</a> / <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a><br />
