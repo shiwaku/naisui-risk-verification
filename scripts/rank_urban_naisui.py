@@ -80,7 +80,9 @@ def build() -> pd.DataFrame:
             "last_year": int(g["last_year"].max()),
             "years": int(g["years"].max()),  # 区ごとの年数の最大（区をまたいだ年数の和ではない）
             "has_a51": bool(g["has_a51"].any()),
+            "a51_km2": float(g["a51_km2"].max()) if g["a51_km2"].notna().any() else None,
             "hires_dem_pref": bool(g["hires_dem_pref"].any()),
+            "hires_dem": str(g["hires_dem"].fillna("").iloc[0]),
             "wards": wards_note(g) if g["ward"].notna().any() else "",
         }
         for key, col in EVENT_COLS.items():
@@ -107,7 +109,7 @@ def write_html(r: pd.DataFrame) -> None:
 
 
 def write_md(r: pd.DataFrame) -> None:
-    yes = lambda b: "○" if b else ""  # noqa: E731
+    a51 = lambda x: f"あり（{x.a51_km2:.2f} km²）" if x.has_a51 else "なし"  # noqa: E731
     p = lambda x: "–" if x is None or pd.isna(x) else f"{x * 100:.0f}%"  # noqa: E731
     lines = [
         "# 都市型水害（内水）の棟数ランキング",
@@ -128,20 +130,21 @@ def write_md(r: pd.DataFrame) -> None:
         "局地的な短時間強雨は「豪雨・その他」に入ることが多い",
         "- 「宅地の割合」は、浸水面積（宅地その他＋農地）のうち宅地その他の割合",
         "- 「年数」は被害の記録があった年の数（政令市は区ごとの最大）",
-        "- 「A51」は内水浸水想定区域が国土数値情報に収録されているか",
-        "- 「県の高解像度標高」は、市街地を覆う都道府県の LP の DEM・DSM・点群がある**都道府県**か"
-        "（[標高データの候補](elevation-sources.md) §2。市区町村ごとの被覆は未確認）",
+        "- 「内水浸水想定区域」は、国土数値情報の雨水出水（内水）浸水想定区域（A51、2025年度版）にその市区町村の区域が収録されているか。"
+        "収録されている場合は想定区域の面積を書いた（政令市は市として収録された面積）",
+        "- 「都道府県の高解像度標高」は、市街地を覆う都道府県の LP の DEM・DSM・点群がある**都道府県**の、その解像度と種類"
+        "（[標高データの候補](elevation-sources.md) §2。市区町村ごとの被覆は未確認）。兵庫県の 0.5m は森林が中心なので 1m を載せた",
         "- 水害統計の「内水」には、河川の水位が上がって排水できなくなった内水も含まれる。短時間強雨による内水だけではない",
         "",
-        "| 順位 | 都道府県 | 市区町村 | 床上 | 床下 | 合計（棟） | 台風 | 梅雨前線 | 豪雨・その他 | 宅地の割合 | 年数 | 期間 | DID 人口割合 | A51 | 県の高解像度標高 | 備考（政令市の区の内訳） |",
-        "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|:---:|:---:|---|",
+        "| 順位 | 都道府県 | 市区町村 | 床上 | 床下 | 合計（棟） | 台風 | 梅雨前線 | 豪雨・その他 | 宅地の割合 | 年数 | 期間 | DID 人口割合 | 内水浸水想定区域（国土数値情報） | 都道府県の高解像度標高 | 備考（政令市の区の内訳） |",
+        "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|---|---|---|",
     ]
     for x in r.head(TOP_N).itertuples():
         lines.append(
             f"| {x.rank} | {x.pref} | {x.muni} | {x.yukaue:,.0f} | {x.yukashita:,.0f} | {x.buildings:,.0f} | "
             f"{p(x.typhoon_share)} | {p(x.tsuyu_share)} | {p(x.gou_share)} | {p(x.takuchi_share)} | "
-            f"{x.years} | {x.first_year if x.first_year == x.last_year else f'{x.first_year}〜{x.last_year}'} | {x.did_pop_pct:.1f}% | {yes(x.has_a51)} | "
-            f"{yes(x.hires_dem_pref)} | {x.wards} |"
+            f"{x.years} | {x.first_year if x.first_year == x.last_year else f'{x.first_year}〜{x.last_year}'} | {x.did_pop_pct:.1f}% | {a51(x)} | "
+            f"{x.hires_dem or 'なし'} | {x.wards} |"
         )
     DOC.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 

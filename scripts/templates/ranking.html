@@ -109,7 +109,7 @@
     background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
     overflow-x: auto;
   }
-  table { border-collapse: collapse; width: 100%; min-width: 1060px; }
+  table { border-collapse: collapse; width: 100%; min-width: 1180px; }
   th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
   th {
     position: sticky; top: 0; background: var(--surface); z-index: 1;
@@ -128,6 +128,7 @@
   td.nowrap { white-space: nowrap; }
   td.note { color: var(--ink-2); font-size: 12px; min-width: 200px; }
   .mark { color: var(--mark); font-weight: 700; }
+  .none { color: var(--ink-3); }
   .bar { display: flex; width: 120px; height: 10px; border-radius: 3px; overflow: hidden; background: var(--line); }
   .bar i { display: block; height: 100%; }
   .bar-cell { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
@@ -153,7 +154,7 @@
       2010〜2023年の<a href="https://www.mlit.go.jp/river/toukei_chousa/kasen/suigaitoukei/">水害統計調査</a>から、
       <strong>都市部</strong>（人口集中地区に住む人が __URBAN_PCT__% 以上）で、
       <strong>内水・窪地内水による床上＋床下の浸水が __MIN_BUILDINGS__ 棟以上</strong>あった市区町村を、棟数の多い順に並べた。
-      内水浸水想定区域（国土数値情報 A51）の有無と、市街地を覆う都道府県の高解像度標高の有無もあわせて示す。
+      国土数値情報に内水浸水想定区域が収録されているかと、市街地を覆う都道府県の高解像度標高の解像度もあわせて示す。
     </p>
   </header>
 
@@ -161,8 +162,8 @@
 
   <div class="controls">
     <label>都道府県 <select id="f-pref"><option value="">すべて</option></select></label>
-    <label><input type="checkbox" id="f-a51" /> A51 あり</label>
-    <label><input type="checkbox" id="f-dem" /> 県の高解像度標高あり</label>
+    <label><input type="checkbox" id="f-a51" /> 内水浸水想定区域（国土数値情報）あり</label>
+    <label><input type="checkbox" id="f-dem" /> 都道府県の高解像度標高あり</label>
     <label><input type="checkbox" id="f-gou" /> 「豪雨・その他」が半分以上</label>
     <label>検索 <input type="search" id="f-q" placeholder="市区町村名" /></label>
     <span class="count" id="count"></span>
@@ -191,8 +192,8 @@
           <th data-key="years" class="num">年数</th>
           <th data-key="first_year">期間</th>
           <th data-key="did_pop_pct" class="num">DID 人口割合</th>
-          <th data-key="has_a51">A51</th>
-          <th data-key="hires_dem_pref">県の高解像度標高</th>
+          <th data-key="a51_sort">内水浸水想定区域<br />（国土数値情報）</th>
+          <th data-key="hires_dem_pref">都道府県の<br />高解像度標高</th>
           <th>備考（政令市の区の内訳）</th>
         </tr>
       </thead>
@@ -209,7 +210,8 @@
       <li>「宅地の割合」は、浸水面積（宅地その他＋農地）のうち宅地その他の割合。</li>
       <li>「年数」は被害の記録があった年の数（政令市は区ごとの最大）。</li>
       <li>水害統計の「内水」には、河川の水位が上がって排水できなくなった内水も含まれる。短時間強雨による内水だけではない。</li>
-      <li>「県の高解像度標高」は、市街地を覆う都道府県の航空レーザ測量の DEM・DSM・点群がある<strong>都道府県</strong>か。市区町村ごとの被覆は確かめていない。</li>
+      <li>「内水浸水想定区域（国土数値情報）」は、<a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A51-2025.html">国土数値情報の雨水出水（内水）浸水想定区域（A51、2025年度版）</a>にその市区町村の区域が収録されているか。収録されている場合は想定区域の面積を示す（政令市は市として収録された面積）。自治体が独自に公表している内水ハザードマップは含まない。</li>
+      <li>「都道府県の高解像度標高」は、市街地を覆う都道府県の航空レーザ測量の DEM・DSM・点群がある<strong>都道府県</strong>の、その解像度と種類（G空間情報センターの各データで確認）。市区町村ごとの被覆は確かめていない。兵庫県の 0.5m は森林が中心なので、県全域の 1m を載せた。</li>
       <li>水害統計は市区町村単位の記録で、市区町村の中のどこが浸水したかは分からない。</li>
     </ul>
   </section>
@@ -226,6 +228,8 @@
 
 <script>
 const DATA = __DATA__;
+// 内水浸水想定区域の列は、面積の大きい順（なしは最後）に並べられるようにする
+DATA.forEach((r) => { r.a51_sort = r.has_a51 ? r.a51_km2 : -1; });
 
 const fmt = (n) => Math.round(n).toLocaleString("ja-JP");
 const pct = (x) => `${Math.round(x * 100)}%`;
@@ -253,7 +257,7 @@ const stats = document.getElementById("stats");
 const statItems = [
   [DATA.length, "都市型水害の発生地"],
   [DATA.reduce((s, r) => s + r.buildings, 0), "床上＋床下の合計（棟）"],
-  [DATA.filter((r) => r.has_a51).length, "うち A51 あり"],
+  [DATA.filter((r) => r.has_a51).length, "うち内水浸水想定区域が国土数値情報にある"],
   [DATA.filter((r) => r.gou_share >= 0.5).length, "うち「豪雨・その他」が半分以上"],
 ];
 stats.innerHTML = statItems.map(([v, k]) => `<div class="stat"><div class="v">${fmt(v)}</div><div class="k">${k}</div></div>`).join("");
@@ -301,8 +305,8 @@ function render() {
     <td class="num">${r.years}</td>
     <td class="nowrap">${r.first_year === r.last_year ? r.first_year : `${r.first_year}〜${r.last_year}`}</td>
     <td class="num">${r.did_pop_pct.toFixed(1)}%</td>
-    <td class="center">${r.has_a51 ? '<span class="mark">○</span>' : ""}</td>
-    <td class="center">${r.hires_dem_pref ? '<span class="mark">○</span>' : ""}</td>
+    <td class="nowrap">${r.has_a51 ? `<span class="mark">あり</span>（${r.a51_km2.toFixed(2)} km²）` : '<span class="none">なし</span>'}</td>
+    <td class="nowrap">${r.hires_dem ? esc(r.hires_dem) : '<span class="none">なし</span>'}</td>
     <td class="note">${esc(r.wards)}</td>
   </tr>`).join("");
   $("count").textContent = `${rows.length} / ${DATA.length} 件`;
