@@ -104,11 +104,13 @@ let theme: Theme = initialTheme()
 let base: Basemap = 'pale'
 applyThemeAttr(theme)
 
-let sinsuiOn = true
+// 初期表示は段彩（標高）と陰影起伏だけにする。浸水実績・内水浸水想定区域・地形分類は
+// 必要に応じてパネルから重ねる（最初から全部重ねると、地形そのものが読みにくい）
+let sinsuiOn = false
 let opacity = DEFAULT_OPACITY
 const filter: FilterState = { ...DEFAULT_FILTER }
 
-let reliefOn = false
+let reliefOn = true
 let reliefOpacity = DEFAULT_RELIEF_OPACITY
 let reliefRange: ReliefRange = DEFAULT_RELIEF_RANGE
 let hillshadeOn = true
@@ -121,12 +123,12 @@ let contoursOn = false
 
 /** 地形分類。人工地形（盛土・干拓など）は自然地形の上に重ねる（地理院地図と同じ順）。 */
 const LANDFORM_KINDS: LandformKind[] = ['natural', 'artificial']
-const landformOn: Record<LandformKind, boolean> = { natural: true, artificial: true }
+const landformOn: Record<LandformKind, boolean> = { natural: false, artificial: false }
 let landformMode: LandformMode = 'naisui'
 let landformOpacity = DEFAULT_LANDFORM_OPACITY
 
-/** 内水浸水想定区域（重ねるハザードマップ）。検証の正解データとして既定で重ねる。 */
-let naisuiOn = true
+/** 内水浸水想定区域（重ねるハザードマップ）。検証の正解データ。 */
+let naisuiOn = false
 let naisuiOpacity = DEFAULT_NAISUI_OPACITY
 
 /**
@@ -711,6 +713,13 @@ function selectEvent(src: string | null): void {
   renderEventNote()
   renderLegend()
   applyFilter()
+  // 浸水域は初期表示でオフ。イベントを選んだ（`?event=` の復元を含む）のに何も出ないと
+  // 分からないので、選んだときは表示をオンにする
+  if (src && !sinsuiOn) {
+    sinsuiOn = true
+    sinsuiOnEl.checked = true
+    applyVisibility()
+  }
 }
 
 function buildEventPicker(idx: EventIndex): void {
@@ -874,6 +883,13 @@ hillshadeMethodEl.addEventListener('change', () => {
   hillshadeExag = HILLSHADE_PRESETS[hillshadeMethod].exaggeration
   hillshadeExagEl.value = String(hillshadeExag)
   hillshadeExagValEl.textContent = hillshadeExag.toFixed(2)
+  // レイヤーだけを外して付け直すと、残した DEM ソースのタイルが reloading のまま戻らず
+  // （MapLibre 5.6）、style が読み込み中のままになって、2回目以降の切り替えが
+  // whenStyleReady の idle 待ちで止まっていた。
+  // paint の書き換え（setPaintProperty）では、multidirectional の色の配列が描画に
+  // 反映されない。そこで陰影起伏のオン／オフと同じく、ソースごと作り直す。
+  removeLayer(HILLSHADE_ID)
+  removeSource(DEM_HILLSHADE)
   applyHillshade()
 })
 
@@ -1235,6 +1251,8 @@ reliefOpacityValEl.textContent = `${Math.round(reliefOpacity * 100)}%`
 buildReliefLegend()
 buildNaisuiLegend()
 naisuiOnEl.checked = naisuiOn
+sinsuiOnEl.checked = sinsuiOn
+reliefOnEl.checked = reliefOn
 naisuiOptsEl.hidden = !naisuiOn
 naisuiOpacityEl.value = String(naisuiOpacity)
 naisuiOpacityValEl.textContent = `${Math.round(naisuiOpacity * 100)}%`
