@@ -9,4 +9,5 @@ dependencies = [
     "pyogrio>=0.13.0",
     "requests>=2.34.2",
     "shapely>=2.1.2",
+    "xlrd>=2.0.2",
 ]

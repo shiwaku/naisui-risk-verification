@@ -7,6 +7,7 @@
 水害原因に「内水」「窪地内水」があり、市町村ごとの内水被害を全国で比べられる。
 
 e-Stat の「ファイル」から年ごとの Excel を取る（API のアプリケーション ID は不要）。
+2014年以前は旧形式（.xls）、2015年以降は .xlsx で配られている。2024年の基本表は 2026-09 時点で未公開。
 基本表の表番号は年によって違うので、各年の「水害統計基本表」の分類にあるファイルを取り、
 見出しに「水害原因」「市区町村名」「床上」があるものを一般資産等の基本表とみなす。
 
@@ -23,6 +24,7 @@ from pathlib import Path
 
 import openpyxl
 import requests
+import xlrd
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data" / "raw" / "suigai_toukei"
@@ -67,19 +69,41 @@ def basic_table_files(tstat: str) -> list[str]:
         )
         title = re.search(r"<title>(.*?)</title>", page, re.S)
         if title and "基本表" in html.unescape(title.group(1)):
-            ids += re.findall(r"file-download\?statInfId=(\d+)&amp;fileKind=0", page)
+            # リンクの & はページによって実体参照（&amp;）のことも、そのままのこともある
+            ids += re.findall(r"file-download\?statInfId=(\d+)(?:&amp;|&)fileKind=0", page)
     return sorted(set(ids))
 
 
-def is_general_asset_table(path: Path) -> bool:
+OLE_MAGIC = b"\xd0\xcf\x11\xe0"  # 旧形式（.xls）の先頭
+
+
+def excel_suffix(content: bytes) -> str:
+    return ".xls" if content.startswith(OLE_MAGIC) else ".xlsx"
+
+
+def head_text(path: Path, rows: int = 6) -> str:
+    """先頭の数行の文字列。見出しで表の種類を見分けるのに使う。"""
+    if path.suffix == ".xls":
+        # on_demand はファイルを開いたままにするので、読み終えたら閉じる（Windows では開いたままだと名前を変えられない）
+        book = xlrd.open_workbook(path, on_demand=True)
+        try:
+            sh = book.sheet_by_index(0)
+            cells = [sh.cell_value(r, c) for r in range(min(rows, sh.nrows)) for c in range(sh.ncols)]
+        finally:
+            book.release_resources()
+        return " ".join(str(v) for v in cells if v not in ("", None))
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
     try:
         ws = wb[wb.sheetnames[0]]
-        head = " ".join(
-            str(v) for row in ws.iter_rows(min_row=1, max_row=6, values_only=True) for v in row if v is not None
+        return " ".join(
+            str(v) for row in ws.iter_rows(min_row=1, max_row=rows, values_only=True) for v in row if v is not None
         )
     finally:
         wb.close()
+
+
+def is_general_asset_table(path: Path) -> bool:
+    head = head_text(path)
     return all(k in head for k in ("水害原因", "市区町村名", "床")) and "河川等種別" in head
 
 
@@ -87,23 +111,25 @@ def main(start: int, end: int) -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     years = survey_years()
     for year in range(start, end + 1):
-        dest = OUT / f"kihon_{year}.xlsx"
-        if dest.exists():
-            print(f"{year}: 取得済み")
+        done = [p for p in OUT.glob(f"kihon_{year}.xls*")]
+        if done:
+            print(f"{year}: 取得済み（{done[0].name}）")
             continue
         if year not in years:
             print(f"{year}: e-Stat に年報が見つからない")
             continue
         found = False
         for sid in basic_table_files(years[year]):
-            tmp = OUT / f"_{year}_{sid}.xlsx"
             r = requests.get(f"{BASE}/stat-search/file-download?statInfId={sid}&fileKind=0", timeout=120)
             r.raise_for_status()
+            suffix = excel_suffix(r.content)
+            tmp = OUT / f"_{year}_{sid}{suffix}"
+            dest = OUT / f"kihon_{year}{suffix}"
             tmp.write_bytes(r.content)
             time.sleep(0.5)
             try:
                 ok = is_general_asset_table(tmp)
-            except Exception:  # xls など読めない形式
+            except Exception:  # Excel 以外（PDF など）や壊れたファイル
                 ok = False
             if ok and not found:
                 tmp.replace(dest)
