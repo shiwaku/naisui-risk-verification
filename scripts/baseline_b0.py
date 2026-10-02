@@ -6,10 +6,16 @@
 DEM の窪地を埋め（WhiteboxTools FillDepressions、Wang & Liu 2006）、埋めた深さ = 埋めた後の標高 − 元の標高
 を窪地深とする。雨量は使わない。
 
+B0b: 掘り抜いてから埋める（WhiteboxTools BreachDepressionsLeastCost、Lindsay 2016）。
+DEM には道路・堤防の下を通る水路や樋門が表れず、堤防に囲まれた低地が丸ごと窪地になる
+（docs/trial-tottori.md §5）。窪地の出口を最大 BREACH_DISTS m まで最小コストで掘り抜き、
+抜けきらない窪地だけを埋めて、その深さを窪地深とする。距離は1つに決めず掃引する。
+
 出力（data/interim/tottori/）:
 - filled_1m.tif         窪地を埋めた標高
 - b0_depth.tif          窪地深（m）。評価ではこの値の大きい順に「危ない」とみなす
 - b0_mask_d{深さ}_a{面積}.tif  窪地深が MIN_DEPTH 以上のセルが、つながって MIN_AREA m² 以上のまとまりになる所を 1
+- b0b_depth_{距離}m.tif  B0b の窪地深（m）
 """
 
 from __future__ import annotations
@@ -28,6 +34,8 @@ WORK = ROOT / "data" / "interim" / "tottori"
 # 窪地とみなす深さ（A51 は 0.1m 未満を区域にしない）と、まとまりの面積の下限
 MIN_DEPTH = 0.1
 MIN_AREAS = [0, 100, 1000]
+# B0b で掘り抜く最大距離（m）
+BREACH_DISTS = [10, 20, 30, 50, 100]
 
 
 def main() -> int:
@@ -70,6 +78,24 @@ def main() -> int:
         with rasterio.open(WORK / name, "w", **(profile | dict(dtype="uint8", nodata=None, predictor=1))) as dst:
             dst.write(mask, 1)
         print(f"  {name}: まとまり {int(keep.sum()):,} 個、{mask.sum() / 1e6:.2f} km²")
+
+    wbt = WhiteboxTools()
+    wbt.set_verbose_mode(False)
+    for dist in BREACH_DISTS:
+        out = WORK / f"b0b_depth_{dist}m.tif"
+        if out.exists():
+            continue
+        tmp = WORK / f"breached_{dist}m.tif"
+        rc = wbt.breach_depressions_least_cost(str(dem_path), str(tmp), dist=int(dist / profile["transform"].a), fill=True)
+        if rc != 0 or not tmp.exists():
+            print(f"BreachDepressionsLeastCost（{dist}m）に失敗した", file=sys.stderr)
+            return 1
+        with rasterio.open(tmp) as src:
+            d = np.clip((src.read(1, masked=True) - dem).filled(np.nan), 0, None).astype("float32")
+        tmp.unlink()  # 非圧縮で大きいので消す
+        with rasterio.open(out, "w", **(profile | dict(nodata=np.nan))) as dst:
+            dst.write(d, 1)
+        print(f"  {out.name}: ≥{MIN_DEPTH}m {np.mean(d[np.isfinite(d)] >= MIN_DEPTH):.1%}")
     return 0
 
 

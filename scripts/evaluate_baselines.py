@@ -95,6 +95,8 @@ def main() -> int:
         "標高だけ（低いほど危ない）": -dem[domain],
         "B0 窪地深": np.nan_to_num(read("b0_depth.tif")[domain]),
     }
+    for path in sorted(WORK.glob("b0b_depth_*m.tif"), key=lambda p: int(p.stem.split("_")[-1][:-1])):
+        scores[f"B0b 掘り抜き{path.stem.split('_')[-1]}＋窪地深"] = np.nan_to_num(read(path.name)[domain])
     masks = {}
     for path in sorted(WORK.glob("b0_mask_*.tif")):
         d, a = path.stem.removeprefix("b0_mask_").split("_")
