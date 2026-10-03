@@ -10,7 +10,8 @@
 調査の背景・データ・当初案は [`docs/naisui-research-notes.md`](docs/naisui-research-notes.md)、
 既存手法の文献調査と手法選定は [`docs/method-survey.md`](docs/method-survey.md)、
 標高データ（都道府県の航空レーザ測量成果）の候補は [`docs/elevation-sources.md`](docs/elevation-sources.md)、
-検証対象地域の選定は [`docs/study-area-selection.md`](docs/study-area-selection.md) にまとめている。
+検証対象地域の選定は [`docs/study-area-selection.md`](docs/study-area-selection.md)、
+段階1の試行（鳥取市）の結果は [`docs/trial-tottori.md`](docs/trial-tottori.md) にまとめている。
 
 ## 都市型水害（内水）の棟数ランキング
 
@@ -58,6 +59,9 @@ npm run build    # 検証を通してから ../app/ へビルド
 - 内水浸水想定区域: 出典：「[ハザードマップポータルサイト](https://disaportal.gsi.go.jp/hazardmapportal/hazardmap/copyright/opendata.html#naisui)」（作成者は各市町村）
 - 地形分類: [国土地理院 ベクトルタイル提供実験（地形分類）](https://github.com/gsi-cyberjapan/experimental_landformclassification)（[解説](https://www.gsi.go.jp/bousaichiri/lfc_index.html)）。[国土地理院コンテンツ利用規約](https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html)に従って利用
 - 標高: [Mapterhorn](https://mapterhorn.com/)（[attribution](https://mapterhorn.com/attribution)）
+- 試行（鳥取市）の標高: [鳥取県 数値標高モデル(DEM)0.5m](https://www.geospatial.jp/ckan/dataset/dem05_tottori)（G空間情報センター、政府標準利用規約）
+- 試行（鳥取市）の雨水出水浸水想定区域・人口集中地区・行政区域: [国土数値情報](https://nlftp.mlit.go.jp/ksj/)（A51・A16・N03）国土交通省 を加工して作成
+- 試行（鳥取市）の水面・水路: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors（ODbL）
 - 背景地図: [国土地理院 最適化ベクトルタイル](https://github.com/gsi-cyberjapan/optimal_bvmap) / [地理院タイル](https://maps.gsi.go.jp/development/ichiran.html)
 
 本リポジトリは個人が作成するものであり、国土交通省・国土地理院の公式なものではない。

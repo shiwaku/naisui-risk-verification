@@ -1,6 +1,7 @@
 """段階1の試行（鳥取市）の入力を、同じ 1m 格子にそろえる。
 
     uv run python scripts/download.py        # A51・N03・A16
+    uv run python scripts/fetch_osm_water.py # 水面・水路（OSM）
     uv run python scripts/prepare_trial.py
 
 前提: 鳥取県 DEM 0.5m（G空間情報センター dem05_tottori）のうち、計算範囲にかかるタイルを
@@ -11,6 +12,8 @@ data/raw/dem05_tottori/ に置き、tottori_roi.vrt にまとめてあること�
 - a51_class.tif  A51 の浸水深の区分（0: 区域外、1: 0.3m未満 … 6: 5m以上10m未満）
 - did.tif        人口集中地区（令和2年）の中なら 1
 - city.tif       鳥取市の中なら 1
+- water.tif      水面なら 1。OSM の水面の面と、水路の線から WATER_HALF_WIDTH_M 以内
+- water_dist.tif 水路の線・水面の面からの距離（m）
 
 範囲（docs/study-area-selection.md §5「市町村の境界で DEM を切らない」）:
 - 計算範囲は、A51 と DID の外接矩形に BUFFER_M のバッファを付けたもの。
@@ -30,6 +33,7 @@ from rasterio.enums import Resampling
 from rasterio.features import rasterize
 from rasterio.transform import from_origin
 from rasterio.warp import reproject
+from scipy import ndimage
 from shapely.geometry import box
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +50,10 @@ DEM_VRT = RAW / "dem05_tottori" / "tottori_roi.vrt"
 A51 = RAW / "A51" / "A51-25_31_GML" / CITY_CODE / f"A51-25_{CITY_CODE}.geojson"
 N03 = RAW / "N03" / "N03-20250101_31_GML" / "N03-20250101_31.geojson"
 A16 = RAW / "A16" / "A16-20_31_GML" / "A16-20_31_DID.geojson"
+OSM_WATER = RAW / "osm" / "tottori_water.geojson"
+
+# 水路の線から水面とみなす幅（片側）。OSM の線には幅がないので一律にする
+WATER_HALF_WIDTH_M = 3
 
 # A51_005 の浸水深の区分。値が大きいほど深い
 DEPTH_CLASSES = ["0.3m未満", "0.3m以上0.5m未満", "0.5m以上1m未満", "1m以上3m未満", "3m以上5m未満", "5m以上10m未満"]
@@ -101,6 +109,21 @@ def main() -> int:
           base, dtype="uint8", nodata=None)
     write(OUT / "city.tif", rasterize(((g, 1) for g in city.geometry), (height, width), transform=transform, dtype="uint8"),
           base, dtype="uint8", nodata=None)
+
+    if not OSM_WATER.exists():
+        print(f"水面・水路がないので飛ばす（scripts/fetch_osm_water.py）: {OSM_WATER.relative_to(ROOT)}")
+        return 0
+    osm = gpd.read_file(OSM_WATER).to_crs(CRS)
+    is_line = osm.geom_type.isin(["LineString", "MultiLineString"])
+    # 線と面そのもの（距離の起点）
+    core = rasterize(((g, 1) for g in osm.geometry), (height, width), transform=transform, dtype="uint8",
+                     all_touched=True)
+    dist = ndimage.distance_transform_edt(core == 0, sampling=RES).astype("float32")
+    write(OUT / "water_dist.tif", dist, base, dtype="float32", nodata=None)
+    water = rasterize(
+        [(g, 1) for g in osm.geometry[~is_line]] + [(g.buffer(WATER_HALF_WIDTH_M), 1) for g in osm.geometry[is_line]],
+        (height, width), transform=transform, dtype="uint8")
+    write(OUT / "water.tif", water, base, dtype="uint8", nodata=None)
     return 0
 
 
