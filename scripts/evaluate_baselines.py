@@ -5,6 +5,7 @@
     uv run python scripts/evaluate_baselines.py
 
 評価する範囲: DID（令和2年）の中で、DEM の値があるセル。
+水面（prepare_trial.py の water.tif）を除いた範囲でも評価する（docs/method-survey.md §7 の 1「河道と水面は除く」）。
 正解: A51 の区域の中。浸水深の区分で3通りに分ける（全区分 / 0.3m以上 / 0.5m以上）。
 鳥取市の A51 は7割が「0.3m未満」で、浅い区域が広く薄く広がっているため。
 
@@ -12,6 +13,7 @@
 - PR-AUC（average precision）。ランダムなら正解の割合（prevalence）と同じ値になる
 - capture@k: 上位 k% の面積に、正解の何割が入るか。lift = capture@k / k
 - 面積をそろえた CSI: 推定の面積を正解の面積と同じにしたときの CSI。このとき precision = recall
+基準として、ランダム・標高だけ・水路からの距離（近いほど危ない）を並べる。
 二値の推定（窪地のマスク）は、precision・recall・CSI と推定の面積を出す。
 
 同じスコアのセルが並ぶ所（窪地深 0 など）は、その中でランダムに選んだときの期待値で数える。
@@ -102,23 +104,31 @@ def main() -> int:
         d, a = path.stem.removeprefix("b0_mask_").split("_")
         masks[f"B0 窪地深≥{d[1:]}m・面積≥{a[1:]}m²"] = read(path.name)[domain] == 1
 
+    if (WORK / "water_dist.tif").exists():
+        scores["水路からの距離（近いほど危ない）"] = -read("water_dist.tif")[domain]
+    domains = {"DID": np.ones(a51.shape, bool)}
+    if (WORK / "water.tif").exists():
+        domains["DID・水面を除く"] = read("water.tif")[domain] == 0
+
     rows = []
-    N = domain.sum()
-    for pos_name, min_cls in POSITIVES.items():
-        pos = a51 >= min_cls
-        P = pos.sum()
-        print(f"評価範囲 {N / 1e6:.2f} km²、正解（A51 {pos_name}）{P / 1e6:.2f} km²（{P / N:.1%}）")
-        base = {"positive": pos_name, "positive_km2": P / 1e6}
-        rows.append({**base, "method": "ランダム", "pr_auc": P / N, **{f"capture@{k:.0%}": k for k in KS},
-                     **{f"lift@{k:.0%}": 1.0 for k in KS}, "csi_area_matched": (P / N) / (2 - P / N)})
-        rows += [{**base, "method": m, **ranked_metrics(s, pos)} for m, s in scores.items()]
-        rows += [{**base, "method": m, **binary_metrics(s, pos)} for m, s in masks.items()]
+    for dom_name, keep in domains.items():
+        N = keep.sum()
+        for pos_name, min_cls in POSITIVES.items():
+            pos = a51[keep] >= min_cls
+            P = pos.sum()
+            print(f"{dom_name} {N / 1e6:.2f} km²、正解（A51 {pos_name}）{P / 1e6:.2f} km²（{P / N:.1%}）")
+            base = {"domain": dom_name, "positive": pos_name, "positive_km2": P / 1e6}
+            rows.append({**base, "method": "ランダム", "pr_auc": P / N, **{f"capture@{k:.0%}": k for k in KS},
+                         **{f"lift@{k:.0%}": 1.0 for k in KS}, "csi_area_matched": (P / N) / (2 - P / N)})
+            rows += [{**base, "method": m, **ranked_metrics(s[keep], pos)} for m, s in scores.items()]
+            rows += [{**base, "method": m, **binary_metrics(s[keep], pos)} for m, s in masks.items()]
 
     df = pd.DataFrame(rows)
     df.to_csv(OUT / "baseline_metrics.csv", index=False, float_format="%.4f")
     print(f"  {(OUT / 'baseline_metrics.csv').relative_to(ROOT)}")
+    cols = ["domain", "positive", "method", "pr_auc", "lift@5%", "lift@10%", "csi_area_matched"]
     with pd.option_context("display.width", 200, "display.max_columns", None):
-        print(df.round(3).to_string(index=False))
+        print(df.loc[df["pr_auc"].notna(), cols].round(3).to_string(index=False))
     return 0
 
 
