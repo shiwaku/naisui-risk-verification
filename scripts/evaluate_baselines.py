@@ -18,6 +18,9 @@
 - capture@k: 上位 k% の面積に、正解の何割が入るか。lift = capture@k / k
 - 面積をそろえた CSI: 推定の面積を正解の面積と同じにしたときの CSI。このとき precision = recall
 基準として、ランダム・標高だけ・水路からの距離（近いほど危ない）を並べる。
+組合せ: 深い区域は B0b、浅い区域は HAND が効いたので、2つを1つのスコアにまとめる。
+- 順位の平均・順位の高い方: それぞれを計算範囲の中の順位（0〜100）にしてから平均または大きい方を取る
+- 窪地深 − HAND: どちらも m なので、そのまま引く。窪地の外は HAND だけで決まり、窪地はその深さだけ上がる
 二値の推定（窪地のマスク、地形分類の内水関連区分）は、precision・recall・CSI と推定の面積を出す。
 
 同じスコアのセルが並ぶ所（窪地深 0 など）は、その中でランダムに選んだときの期待値で数える。
@@ -33,6 +36,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import rasterio
+from scipy.stats import rankdata
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "data" / "interim" / "tottori"
@@ -82,6 +86,11 @@ def lowest_if_nan(score: np.ndarray) -> np.ndarray:
     return np.where(np.isfinite(score), score, np.nanmin(score) - 1)
 
 
+def pct_rank(score: np.ndarray) -> np.ndarray:
+    """計算範囲の中での順位（0〜100、大きいほど危ない）。同じ値は平均の順位にする。"""
+    return rankdata(score) / len(score) * 100
+
+
 def binary_metrics(pred: np.ndarray, pos: np.ndarray) -> dict:
     tp = float(np.sum(pred & pos))
     fp, fn = float(np.sum(pred & ~pos)), float(np.sum(~pred & pos))
@@ -121,6 +130,13 @@ def main() -> int:
     for path in sorted(WORK.glob("b2_hand_*km2.tif")):
         km2 = path.stem.removeprefix("b2_hand_")
         scores[f"B2 HAND（流路 {km2[:-3]} km² 以上、低いほど危ない）"] = lowest_if_nan(-read(path.name)[domain])
+    breach, hand = "B0b 掘り抜き20m＋窪地深", "B2 HAND（流路 0.1 km² 以上、低いほど危ない）"
+    if breach in scores and hand in scores:
+        # 溜まる所（窪地）と溢れて広がる所（HAND）を1つのスコアにする
+        r_breach, r_hand = pct_rank(scores[breach]), pct_rank(scores[hand])
+        scores["組合せ 順位の平均（B0b 20m・HAND）"] = (r_breach + r_hand) / 2
+        scores["組合せ 順位の高い方（B0b 20m・HAND）"] = np.maximum(r_breach, r_hand)
+        scores["組合せ 窪地深 − HAND（m）"] = scores[breach] + scores[hand]  # HAND のスコアは符号を反転済み
     if (WORK / "water_dist.tif").exists():
         scores["水路からの距離（近いほど危ない）"] = -read("water_dist.tif")[domain]
     domains = {"DID": np.ones(a51.shape, bool)}
