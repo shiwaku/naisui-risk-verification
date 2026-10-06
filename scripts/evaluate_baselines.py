@@ -2,7 +2,11 @@
 
     uv run python scripts/prepare_trial.py
     uv run python scripts/baseline_b0.py
+    uv run python scripts/baseline_b2.py
+    uv run python scripts/baseline_b3.py
     uv run python scripts/evaluate_baselines.py
+
+できている基準手法の出力だけを評価する。
 
 評価する範囲: DID（令和2年）の中で、DEM の値があるセル。
 水面（prepare_trial.py の water.tif）を除いた範囲でも評価する（docs/method-survey.md §7 の 1「河道と水面は除く」）。
@@ -14,7 +18,7 @@
 - capture@k: 上位 k% の面積に、正解の何割が入るか。lift = capture@k / k
 - 面積をそろえた CSI: 推定の面積を正解の面積と同じにしたときの CSI。このとき precision = recall
 基準として、ランダム・標高だけ・水路からの距離（近いほど危ない）を並べる。
-二値の推定（窪地のマスク）は、precision・recall・CSI と推定の面積を出す。
+二値の推定（窪地のマスク、地形分類の内水関連区分）は、precision・recall・CSI と推定の面積を出す。
 
 同じスコアのセルが並ぶ所（窪地深 0 など）は、その中でランダムに選んだときの期待値で数える。
 
@@ -73,6 +77,11 @@ def ranked_metrics(score: np.ndarray, pos: np.ndarray) -> dict:
     return out
 
 
+def lowest_if_nan(score: np.ndarray) -> np.ndarray:
+    """値のないセルを最下位にする（ranked_metrics は値を整数に丸めるので inf は使えない）。"""
+    return np.where(np.isfinite(score), score, np.nanmin(score) - 1)
+
+
 def binary_metrics(pred: np.ndarray, pos: np.ndarray) -> dict:
     tp = float(np.sum(pred & pos))
     fp, fn = float(np.sum(pred & ~pos)), float(np.sum(~pred & pos))
@@ -103,7 +112,15 @@ def main() -> int:
     for path in sorted(WORK.glob("b0_mask_*.tif")):
         d, a = path.stem.removeprefix("b0_mask_").split("_")
         masks[f"B0 窪地深≥{d[1:]}m・面積≥{a[1:]}m²"] = read(path.name)[domain] == 1
+    for kind, label in [("natural", "自然地形"), ("artificial", "人工地形"), ("any", "どちらか")]:
+        if (WORK / f"b3_naisui_{kind}.tif").exists():
+            masks[f"B3 地形分類の内水関連（{label}）"] = read(f"b3_naisui_{kind}.tif")[domain] == 1
 
+    if (WORK / "b2_twi.tif").exists():
+        scores["B2 TWI"] = lowest_if_nan(read("b2_twi.tif")[domain])
+    for path in sorted(WORK.glob("b2_hand_*km2.tif")):
+        km2 = path.stem.removeprefix("b2_hand_")
+        scores[f"B2 HAND（流路 {km2[:-3]} km² 以上、低いほど危ない）"] = lowest_if_nan(-read(path.name)[domain])
     if (WORK / "water_dist.tif").exists():
         scores["水路からの距離（近いほど危ない）"] = -read("water_dist.tif")[domain]
     domains = {"DID": np.ones(a51.shape, bool)}
