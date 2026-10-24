@@ -25,6 +25,7 @@ import {
   CONTOUR_SOURCE,
   CONTOUR_TEXT_ID,
   DEM_HILLSHADE,
+  DEM_OVERLAY_URL,
   DEM_TERRAIN,
   HILLSHADE_ID,
   HILLSHADE_METHODS,
@@ -138,8 +139,10 @@ let naisuiOpacity = DEFAULT_NAISUI_OPACITY
  * （見た目は同じで、PMTiles 方式は 705GB のアーカイブへの範囲読みで遅い）、
  * 操作を迷わせるだけだった。既定の TileJSON に固定し、切り分けが必要なときだけ
  * `?dem=zxy` / `?dem=pmtiles` で差し替える。
+ * 自治体 DEM を重ねるとき（DEM_OVERLAY_URL）は、重ねられる PMTiles 方式にする。
  */
 const demMode: DemMode = ((): DemMode => {
+  if (DEM_OVERLAY_URL) return 'pmtiles'
   const q = new URLSearchParams(location.search).get('dem')
   return q === 'zxy' || q === 'pmtiles' || q === 'tilejson' ? q : 'tilejson'
 })()

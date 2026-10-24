@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
   /** 浸水実績 PMTiles の配信先を差し替える（既定は GitHub Pages 上の変換結果）。 */
   readonly VITE_PMTILES_URL?: string
+  /** Mapterhorn に重ねる自治体 DEM（terrarium の PMTiles）の配信先。terrain.ts を参照。 */
+  readonly VITE_DEM_OVERLAY_URL?: string
 }
 
 /** vite.config.ts の define で埋め込むビルド時刻。 */
