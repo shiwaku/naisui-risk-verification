@@ -1,4 +1,4 @@
-import { Protocol } from 'pmtiles'
+import { PMTiles } from 'pmtiles'
 import mlcontour from 'maplibre-contour'
 import type {
   LayerSpecification,
@@ -24,6 +24,37 @@ export const MAPTERHORN_ATTRIBUTION =
 
 /** DEM タイルのネイティブズーム（z13〜z17 のアーカイブがある）。これより先は overzoom。 */
 const DEM_MAX_ZOOM = 17
+
+/**
+ * Mapterhorn に重ねる自治体の高解像度 DEM（鳥取県 0.5m など）。
+ *
+ * Mapterhorn の pipelines（source → aggregation → downsampling → bundle）で作った
+ * terrarium の PMTiles で、z13 以上のタイルがあればそれを Mapterhorn より優先する。
+ * 標高は測地成果2024 にそろえてあるので、地理院 DEM とつながる
+ * （作り方: shiwaku/mapterhorn-municipal-dem-validation）。
+ * `?dem_overlay=<url>` か `VITE_DEM_OVERLAY_URL` で指定する。配信先は CORS と Range Request が要る。
+ * 指定したときは DEM を PMTiles 方式で読み、段彩もこの経路を通す。
+ */
+export const DEM_OVERLAY_URL: string | null =
+  // scripts/check-*.mjs は Node でこのモジュールを読むので、location が無いこともある
+  (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('dem_overlay')) ??
+  import.meta.env.VITE_DEM_OVERLAY_URL ??
+  null
+
+/**
+ * 自治体 DEM のデータのある範囲（GeoJSON, EPSG:4326、各地物の `source` 属性がソースの識別子）。
+ * 重ねる PMTiles のタイルには本家のソースも合成されているので、タイルの有無では範囲が分からない。
+ * これがあると「この地点の DEM」に自治体 DEM の細かさを出せる（coverage.ts）。
+ * 作り方は shiwaku/mapterhorn-municipal-dem-validation の source_coverage.py。
+ * `?dem_overlay_coverage=<url>` か `VITE_DEM_OVERLAY_COVERAGE_URL` で指定する。
+ */
+export const DEM_OVERLAY_COVERAGE_URL: string | null =
+  (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('dem_overlay_coverage')) ??
+  import.meta.env.VITE_DEM_OVERLAY_COVERAGE_URL ??
+  null
+
+/** 自治体 DEM を先に読むズーム。これより低いズームは Mapterhorn の planet アーカイブだけを読む。 */
+export const DEM_OVERLAY_MIN_ZOOM = 13
 
 /** DEM タイルの配信方式。Mapterhorn 公式サンプルの3通りに対応する。 */
 export type DemMode = 'tilejson' | 'zxy' | 'pmtiles'
@@ -130,24 +161,82 @@ interface MaplibreLike {
 
 let demSource: InstanceType<typeof mlcontour.DemSource> | null = null
 
+const overlay = DEM_OVERLAY_URL ? new PMTiles(DEM_OVERLAY_URL) : null
+const archives = new Map<string, PMTiles>()
+
+/** planet アーカイブ（z<=12）か対応する z6 アーカイブ（z>=13）。 */
+function archive(z: number, x: number, y: number): PMTiles {
+  const name = z <= 12 ? 'planet' : `6-${x >> (z - 6)}-${y >> (z - 6)}`
+  let a = archives.get(name)
+  if (!a) {
+    a = new PMTiles(`${PMTILES_BASE}/${name}.pmtiles`)
+    archives.set(name, a)
+  }
+  return a
+}
+
+async function readTile(z: number, x: number, y: number, signal: AbortSignal) {
+  if (overlay && z >= DEM_OVERLAY_MIN_ZOOM) {
+    const r = await overlay.getZxy(z, x, y, signal)
+    if (r) return r.data
+  }
+  return (await archive(z, x, y).getZxy(z, x, y, signal))?.data
+}
+
+/**
+ * 祖先タイルのうち x/y を覆う 1/4（d=1）・1/16（d=2）… を切り出し、512px に拡大する。
+ * terrarium の RGB は補間すると標高が壊れるので、最近傍で伸ばす。
+ */
+async function enlarge(parent: ArrayBuffer, d: number, x: number, y: number): Promise<ArrayBuffer> {
+  const bmp = await createImageBitmap(new Blob([parent]), {
+    colorSpaceConversion: 'none',
+    premultiplyAlpha: 'none',
+  })
+  const size = bmp.width >> d
+  const mask = (1 << d) - 1
+  const canvas = new OffscreenCanvas(bmp.width, bmp.height)
+  const ctx = canvas.getContext('2d')!
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(bmp, (x & mask) * size, (y & mask) * size, size, size, 0, 0, bmp.width, bmp.height)
+  bmp.close()
+  return (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer()
+}
+
+/**
+ * DEM タイル 1 枚（terrarium の画像）。自治体 DEM → Mapterhorn の順に探し、どちらにも無ければ
+ * 祖先タイルを拡大して返す。Mapterhorn の日本の z13 以上は z16 までなので、z17 は
+ * 自治体 DEM の外では拡大になる（無いまま返すと地形に穴が開く）。
+ */
+export async function fetchDemTile(
+  z: number,
+  x: number,
+  y: number,
+  signal: AbortSignal,
+): Promise<ArrayBuffer | undefined> {
+  const data = await readTile(z, x, y, signal)
+  if (data) return data
+  for (let d = 1; d <= 4 && z - d >= 0; d++) {
+    const parent = await readTile(z - d, x >> d, y >> d, signal)
+    if (parent) return enlarge(parent, d, x, y)
+  }
+  return undefined
+}
+
 /**
  * PMTiles ルーティングと maplibre-contour の DEM デコーダを登録する。
  * 地図の生成前に一度だけ呼ぶ。
  */
 export function registerTerrainProtocols(maplibre: MaplibreLike): void {
-  // `mapterhorn://{z}/{x}/{y}` を planet アーカイブ（z<=12）か対応する z6 アーカイブ
-  // （z>=13）へ振り分け、download.mapterhorn.com への Range Request で読む。
-  const protocol = new Protocol({ metadata: true, errorOnMissingTile: true })
-  maplibre.addProtocol('mapterhorn', (async (params: { url: string }, abortController: unknown) => {
+  // `mapterhorn://{z}/{x}/{y}` を自治体 DEM と Mapterhorn の PMTiles へ振り分け、
+  // Range Request で読む（fetchDemTile）。
+  maplibre.addProtocol('mapterhorn', (async (
+    params: { url: string },
+    abortController: AbortController,
+  ) => {
     const [z, x, y] = params.url.replace('mapterhorn://', '').split('/').map(Number)
-    const name = z <= 12 ? 'planet' : `6-${x >> (z - 6)}-${y >> (z - 6)}`
-    const url = `pmtiles://${PMTILES_BASE}/${name}.pmtiles/${z}/${x}/${y}.webp`
-    const response = (await protocol.tile(
-      { ...params, url } as never,
-      abortController as never,
-    )) as { data: unknown }
-    if (response.data === null) throw new Error(`Tile z=${z} x=${x} y=${y} not found.`)
-    return response
+    const data = await fetchDemTile(z, x, y, abortController.signal)
+    if (!data) throw new Error(`Tile z=${z} x=${x} y=${y} not found.`)
+    return { data }
   }) as never)
 
   // DemSource は DEM タイルを自前の HTTP で取るため MapLibre のプロトコルを経由できない。

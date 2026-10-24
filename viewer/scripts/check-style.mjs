@@ -85,6 +85,7 @@ try {
   const DEM_CASES = [
     [['glo30', 'jpdem10b', 'jpdem5a', 'jpdem1a'], 'jpdem1a', 1],   // 江東・能登・北アルプス・人吉
     [['glo30', 'jpdem10b', 'jpdem5a'], 'jpdem5a', 5],              // 十勝
+    [['glo30', 'jpdem10b', 'jpdem1a', 'jptottori'], 'jptottori', 0.5], // 自治体 DEM を重ねたとき（鳥取）
     [['jpdem10b', 'glo30'], 'jpdem10b', 10],
     [['glo30'], 'glo30', 30],
     [['unknownsrc', 'jpdem10a'], 'jpdem10a', 10],                   // 分解能不明のソースは後ろへ

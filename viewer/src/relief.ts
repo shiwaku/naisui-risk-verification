@@ -1,5 +1,5 @@
 import type { LayerSpecification, RasterSourceSpecification } from 'maplibre-gl'
-import { MAPTERHORN_ATTRIBUTION, ZXY_TEMPLATE } from './terrain'
+import { DEM_OVERLAY_URL, MAPTERHORN_ATTRIBUTION, ZXY_TEMPLATE, fetchDemTile } from './terrain'
 
 /**
  * 段彩図（標高を色で塗り分けたラスタ）。陰影起伏の下に敷いて陰影段彩図にする。
@@ -304,7 +304,14 @@ export function registerReliefProtocol(maplibre: MaplibreLike): void {
         max: Number(max),
         step: step === '-' ? undefined : Number(step),
       }
-      const res = await fetch(urlParts.join('/'), { signal: abortController.signal })
+      const url = urlParts.join('/')
+      // 自治体 DEM を重ねるときは、陰影起伏・3D地形と同じ振り分け（mapterhorn://）で読む
+      if (url.startsWith('mapterhorn://')) {
+        const [z, x, y] = url.replace('mapterhorn://', '').split('/').map(Number)
+        const dem = await fetchDemTile(z, x, y, abortController.signal)
+        return { data: dem ? await colorize(dem, range) : null }
+      }
+      const res = await fetch(url, { signal: abortController.signal })
       if (!res.ok) return { data: null }
       return { data: await colorize(await res.arrayBuffer(), range) }
     },
@@ -314,7 +321,10 @@ export function registerReliefProtocol(maplibre: MaplibreLike): void {
 export function reliefSourceSpec(range: ReliefRange): RasterSourceSpecification {
   return {
     type: 'raster',
-    tiles: [`${RELIEF_PROTOCOL}://${range.mode}/${range.min}/${range.max}/${range.step ?? '-'}/${ZXY_TEMPLATE}`],
+    tiles: [
+      `${RELIEF_PROTOCOL}://${range.mode}/${range.min}/${range.max}/${range.step ?? '-'}/` +
+        (DEM_OVERLAY_URL ? 'mapterhorn://{z}/{x}/{y}' : ZXY_TEMPLATE),
+    ],
     tileSize: 512,
     // 微小な窪地を読むには DEM の細かさが要る。Mapterhorn が持つ基盤地図情報 DEM
     // （1m / 5m メッシュ）の細かさは深いズームにしか現れない。ここを上げるほど

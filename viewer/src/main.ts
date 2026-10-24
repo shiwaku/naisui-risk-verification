@@ -25,6 +25,9 @@ import {
   CONTOUR_SOURCE,
   CONTOUR_TEXT_ID,
   DEM_HILLSHADE,
+  DEM_OVERLAY_COVERAGE_URL,
+  DEM_OVERLAY_MIN_ZOOM,
+  DEM_OVERLAY_URL,
   DEM_TERRAIN,
   HILLSHADE_ID,
   HILLSHADE_METHODS,
@@ -64,8 +67,12 @@ import { createEventPicker, type EventPicker } from './eventPicker'
 import {
   COVERAGE_ID,
   COVERAGE_SOURCE,
+  OVERLAY_COVERAGE_ID,
+  OVERLAY_COVERAGE_SOURCE,
   coverageLayer,
   coverageSourceSpec,
+  overlayCoverageLayer,
+  overlayCoverageSourceSpec,
   demHint,
   demLabel,
   finestDem,
@@ -138,8 +145,10 @@ let naisuiOpacity = DEFAULT_NAISUI_OPACITY
  * （見た目は同じで、PMTiles 方式は 705GB のアーカイブへの範囲読みで遅い）、
  * 操作を迷わせるだけだった。既定の TileJSON に固定し、切り分けが必要なときだけ
  * `?dem=zxy` / `?dem=pmtiles` で差し替える。
+ * 自治体 DEM を重ねるとき（DEM_OVERLAY_URL）は、重ねられる PMTiles 方式にする。
  */
 const demMode: DemMode = ((): DemMode => {
+  if (DEM_OVERLAY_URL) return 'pmtiles'
   const q = new URLSearchParams(location.search).get('dem')
   return q === 'zxy' || q === 'pmtiles' || q === 'tilejson' ? q : 'tilejson'
 })()
@@ -290,6 +299,7 @@ const OWN_LAYER_IDS = new Set([
   CONTOUR_LINE_ID,
   CONTOUR_TEXT_ID,
   COVERAGE_ID,
+  OVERLAY_COVERAGE_ID,
   LANDFORM_FILL_ID.natural,
   LANDFORM_FILL_ID.artificial,
   NAISUI_ID,
@@ -382,6 +392,13 @@ function applyCoverage(): void {
     if (!map.getSource(COVERAGE_SOURCE)) map.addSource(COVERAGE_SOURCE, coverageSourceSpec())
     // 見えないので積み順に意味はないが、いちばん下に置いて他のグループの規則を乱さない
     map.addLayer(coverageLayer(), map.getLayer(RELIEF_ID) ? RELIEF_ID : beforeIdFor('relief'))
+    if (DEM_OVERLAY_URL && DEM_OVERLAY_COVERAGE_URL) {
+      removeLayer(OVERLAY_COVERAGE_ID)
+      if (!map.getSource(OVERLAY_COVERAGE_SOURCE)) {
+        map.addSource(OVERLAY_COVERAGE_SOURCE, overlayCoverageSourceSpec(DEM_OVERLAY_COVERAGE_URL))
+      }
+      map.addLayer(overlayCoverageLayer(), COVERAGE_ID)
+    }
   })
 }
 
@@ -389,10 +406,13 @@ function applyCoverage(): void {
  * 画面座標の地点を覆う DEM のうち最も細かいもの。被覆タイルが未読込なら null。
  * 被覆ポリゴンは z14 で数 m 単位に単純化されており、ソースの継ぎ目の数ピクセルは
  * ぼかしで両方が混ざるので、境界付近では厳密ではない。
+ * 自治体 DEM は z13 未満では読まないので、そのズームでは範囲を問い合わせない。
  */
 function demAt(point: maplibregl.PointLike): DemInfo | null {
   if (!map.getLayer(COVERAGE_ID)) return null
-  const feats = map.queryRenderedFeatures(point, { layers: [COVERAGE_ID] })
+  const layers = [COVERAGE_ID]
+  if (map.getLayer(OVERLAY_COVERAGE_ID) && map.getZoom() >= DEM_OVERLAY_MIN_ZOOM) layers.push(OVERLAY_COVERAGE_ID)
+  const feats = map.queryRenderedFeatures(point, { layers })
   return finestDem(feats.map((f) => String((f.properties as { source?: unknown })?.source ?? '')).filter(Boolean))
 }
 

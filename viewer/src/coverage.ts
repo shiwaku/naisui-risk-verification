@@ -1,4 +1,4 @@
-import type { FillLayerSpecification, VectorSourceSpecification } from 'maplibre-gl'
+import type { FillLayerSpecification, GeoJSONSourceSpecification, VectorSourceSpecification } from 'maplibre-gl'
 
 /**
  * Mapterhorn の DEM 被覆（どの地点をどのソースの DEM が覆っているか）。
@@ -44,6 +44,8 @@ const DEM_SOURCES: Record<string, Omit<DemInfo, 'code'>> = {
   jpdem5c: { resolution: 5, name: '基盤地図情報 DEM5C' },
   jpdem10a: { resolution: 10, name: '基盤地図情報 DEM10A' },
   jpdem10b: { resolution: 10, name: '基盤地図情報 DEM10B' },
+  // 自治体 DEM（terrain.ts の DEM_OVERLAY_URL で重ねたとき）。標高は測地成果2024 に補正済み
+  jptottori: { resolution: 0.5, name: '鳥取県 0.5m DEM' },
   // 全球の下敷き。日本の基盤地図情報が無いところ（海上や国外）で出る
   glo30: { resolution: 30, name: 'Copernicus GLO-30' },
 }
@@ -93,6 +95,26 @@ export function demHint(info: DemInfo): string {
 
 export function coverageSourceSpec(): VectorSourceSpecification {
   return { type: 'vector', url: COVERAGE_URL }
+}
+
+/**
+ * 自治体 DEM の範囲（terrain.ts の DEM_OVERLAY_COVERAGE_URL）。本家の被覆タイルには
+ * 載っていないので、別の GeoJSON ソースとして同じ透明な塗りで置く。
+ */
+export const OVERLAY_COVERAGE_SOURCE = 'dem-overlay-coverage'
+export const OVERLAY_COVERAGE_ID = 'dem-overlay-coverage'
+
+export function overlayCoverageSourceSpec(url: string): GeoJSONSourceSpecification {
+  return { type: 'geojson', data: url }
+}
+
+export function overlayCoverageLayer(): FillLayerSpecification {
+  return {
+    id: OVERLAY_COVERAGE_ID,
+    type: 'fill',
+    source: OVERLAY_COVERAGE_SOURCE,
+    paint: { 'fill-color': '#000000', 'fill-opacity': 0 },
+  }
 }
 
 /**

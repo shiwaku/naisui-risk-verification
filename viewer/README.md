@@ -95,6 +95,16 @@ npm run preview  # ビルド結果を確認
 VITE_PMTILES_URL=http://localhost:8080/sinsui_all.pmtiles npm run dev
 ```
 
+自治体の高解像度 DEM（鳥取県 0.5m など）を Mapterhorn に重ねて見る場合は、PMTiles と
+データのある範囲の GeoJSON を CORS と Range Request の効くサーバーで配信し、URL で渡す
+（環境変数なら `VITE_DEM_OVERLAY_URL` / `VITE_DEM_OVERLAY_COVERAGE_URL`）。
+詳しくは「[自治体 DEM を重ねる](#自治体-dem-を重ねる)」。
+
+```sh
+npx http-server <bundle-store のフォルダ> -p 8081 --cors
+# http://localhost:5173/?dem_overlay=http://localhost:8081/6-55-25.pmtiles&dem_overlay_coverage=http://localhost:8081/jptottori-coverage.geojson
+```
+
 ### イベント索引の再生成
 
 イベント名（`disastName`）と各イベントの範囲はタイルの見えている部分からしか引けないため、
@@ -427,6 +437,33 @@ Mapterhorn は TileJSON / ZXY / PMTiles の3通りで DEM を配信しており�
 
 maplibre-contour の `DemSource` は DEM を自前の HTTP で取るため MapLibre の
 プロトコルを経由できず、等高線は常に ZXY から生成する。
+
+### 自治体 DEM を重ねる
+
+段彩を 50cm 刻みで読むと、基盤地図情報 DEM の 1m / 5m では足りない地域がある。
+自治体がオープンデータで出している高解像度 DEM（鳥取県 0.5m など）を、Mapterhorn を
+土台にしてその範囲だけ差し替えられるようにした（`?dem_overlay=<PMTiles の URL>`）。
+
+- **作り方**: 自治体 DEM を Mapterhorn の pipelines（source → aggregation → downsampling →
+  bundle）に通した terrarium の PMTiles。標高は測地成果2024 に補正してあり、地理院 DEM と
+  0.2m 程度の段差を作らずにつながる。手順と検証は
+  [shiwaku/mapterhorn-municipal-dem-validation](https://github.com/shiwaku/mapterhorn-municipal-dem-validation)。
+- **読み方**（`src/terrain.ts` の `fetchDemTile()`）: z13 以上は重ねた PMTiles を先に読み、
+  タイルが無ければ Mapterhorn の z6 アーカイブを読む。どちらにも無い高ズーム
+  （Mapterhorn の日本は z16 まで、自治体 DEM は z17 まで）は祖先タイルを最近傍で拡大する。
+  terrarium の RGB は補間すると標高が壊れるため。z12 以下は Mapterhorn の planet だけを読む。
+- 自治体 DEM を指定したときは DEM を PMTiles 方式で読み、段彩・陰影・3D 地形も同じ経路を通す。
+  等高線は maplibre-contour が z12 までの ZXY を読むので、自治体 DEM は効かない。
+- **細かさの表示**: 重ねる PMTiles のタイルには本家のソースも合成されているため、タイルの有無では
+  自治体 DEM の範囲が分からない。データのある範囲の GeoJSON（`?dem_overlay_coverage=`、
+  各地物の属性 `source` がソースの識別子）を本家の被覆タイルと同じ透明な塗りで載せ、
+  z13 以上では「画面中央の DEM」に「0.5m メッシュ（鳥取県 0.5m DEM）」と出す。
+  GeoJSON は検証リポジトリの `source_coverage.py` で作る（図郭を 1/32 に間引いてポリゴン化。
+  縁は 16m ほど粗い）。
+
+限界: 本家の合成は異なるソースの境目をガウスぼかしでつなぐので、自治体 DEM の縁（県境）に
+ぼけた帯が出る。17.5GB の PMTiles をどこから配信するかは未定で、公開版のビルドでは
+まだ指定していない（[検証リポジトリの #6](https://github.com/shiwaku/mapterhorn-municipal-dem-validation/issues/6)）。
 
 ### 陰影起伏の算出方法の切り替えはソースごと作り直す
 
