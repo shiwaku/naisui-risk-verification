@@ -41,6 +41,21 @@ export const DEM_OVERLAY_URL: string | null =
   import.meta.env.VITE_DEM_OVERLAY_URL ??
   null
 
+/**
+ * 自治体 DEM のデータのある範囲（GeoJSON, EPSG:4326、各地物の `source` 属性がソースの識別子）。
+ * 重ねる PMTiles のタイルには本家のソースも合成されているので、タイルの有無では範囲が分からない。
+ * これがあると「この地点の DEM」に自治体 DEM の細かさを出せる（coverage.ts）。
+ * 作り方は shiwaku/mapterhorn-municipal-dem-validation の source_coverage.py。
+ * `?dem_overlay_coverage=<url>` か `VITE_DEM_OVERLAY_COVERAGE_URL` で指定する。
+ */
+export const DEM_OVERLAY_COVERAGE_URL: string | null =
+  (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('dem_overlay_coverage')) ??
+  import.meta.env.VITE_DEM_OVERLAY_COVERAGE_URL ??
+  null
+
+/** 自治体 DEM を先に読むズーム。これより低いズームは Mapterhorn の planet アーカイブだけを読む。 */
+export const DEM_OVERLAY_MIN_ZOOM = 13
+
 /** DEM タイルの配信方式。Mapterhorn 公式サンプルの3通りに対応する。 */
 export type DemMode = 'tilejson' | 'zxy' | 'pmtiles'
 
@@ -161,7 +176,7 @@ function archive(z: number, x: number, y: number): PMTiles {
 }
 
 async function readTile(z: number, x: number, y: number, signal: AbortSignal) {
-  if (overlay && z >= 13) {
+  if (overlay && z >= DEM_OVERLAY_MIN_ZOOM) {
     const r = await overlay.getZxy(z, x, y, signal)
     if (r) return r.data
   }
