@@ -95,10 +95,10 @@ npm run preview  # ビルド結果を確認
 VITE_PMTILES_URL=http://localhost:8080/sinsui_all.pmtiles npm run dev
 ```
 
-自治体の高解像度 DEM（鳥取県 0.5m など）を Mapterhorn に重ねて見る場合は、PMTiles と
-データのある範囲の GeoJSON を CORS と Range Request の効くサーバーで配信し、URL で渡す
-（環境変数なら `VITE_DEM_OVERLAY_URL` / `VITE_DEM_OVERLAY_COVERAGE_URL`）。
-詳しくは「[自治体 DEM を重ねる](#自治体-dem-を重ねる)」。
+公開版のビルドは、鳥取県 0.5m DEM を Mapterhorn に重ねる（`.env.production`。
+「[自治体 DEM を重ねる](#自治体-dem-を重ねる)」）。`npm run dev` では重ねない。
+手元で作り直した PMTiles を見るときは、PMTiles とデータのある範囲の GeoJSON を CORS と
+Range Request の効くサーバーで配信し、URL で渡す。`?dem_overlay=none` で重ねるのをやめる。
 
 ```sh
 npx http-server <bundle-store のフォルダ> -p 8081 --cors
@@ -442,28 +442,43 @@ maplibre-contour の `DemSource` は DEM を自前の HTTP で取るため MapLi
 
 段彩を 50cm 刻みで読むと、基盤地図情報 DEM の 1m / 5m では足りない地域がある。
 自治体がオープンデータで出している高解像度 DEM（鳥取県 0.5m など）を、Mapterhorn を
-土台にしてその範囲だけ差し替えられるようにした（`?dem_overlay=<PMTiles の URL>`）。
+土台にしてその範囲だけ差し替えられるようにした。公開版は鳥取県 0.5m を重ねる。
+
+| 指定 | URL のパラメータ | 環境変数（`.env.production`） |
+|---|---|---|
+| 重ねる PMTiles | `dem_overlay`（`none` で外す） | `VITE_DEM_OVERLAY_URL` |
+| データのある範囲（GeoJSON） | `dem_overlay_coverage` | `VITE_DEM_OVERLAY_COVERAGE_URL` |
+| 出典（帰属表示に足す HTML） | `dem_overlay_attribution` | `VITE_DEM_OVERLAY_ATTRIBUTION` |
+
+公開版の配信先は Cloudflare R2（`shi-works.com`）:
+`pmtiles/pref-tottori/tottori-dem05-terrarium-6-55-25_v1.pmtiles`（17.5GB）と
+`geojson/pref-tottori/jptottori-coverage_v1.geojson`（700kB）。PMTiles は Range で読むので、
+差し替えるときは同じキーに上書きせず、版（`_v2`…）を上げて `.env.production` を書き換える
+（上書きすると Cloudflare のキャッシュに新旧の断片が混ざる）。
 
 - **作り方**: 自治体 DEM を Mapterhorn の pipelines（source → aggregation → downsampling →
   bundle）に通した terrarium の PMTiles。標高は測地成果2024 に補正してあり、地理院 DEM と
   0.2m 程度の段差を作らずにつながる。手順と検証は
   [shiwaku/mapterhorn-municipal-dem-validation](https://github.com/shiwaku/mapterhorn-municipal-dem-validation)。
 - **読み方**（`src/terrain.ts` の `fetchDemTile()`）: z13 以上は重ねた PMTiles を先に読み、
-  タイルが無ければ Mapterhorn の z6 アーカイブを読む。どちらにも無い高ズーム
-  （Mapterhorn の日本は z16 まで、自治体 DEM は z17 まで）は祖先タイルを最近傍で拡大する。
-  terrarium の RGB は補間すると標高が壊れるため。z12 以下は Mapterhorn の planet だけを読む。
-- 自治体 DEM を指定したときは DEM を PMTiles 方式で読み、段彩・陰影・3D 地形も同じ経路を通す。
+  タイルが無ければ Mapterhorn を ZXY（`tiles.mapterhorn.com`）で読む。z6 アーカイブへの範囲読みより
+  速いので、鳥取の外では重ねない場合とほぼ同じ速さになる。どちらにも無い高ズーム
+  （Mapterhorn の日本は z16 まで、自治体 DEM は z17 まで）は ZXY が 404 を返すので、祖先タイルを
+  最近傍で拡大する。terrarium の RGB は補間すると標高が壊れるため。z12 以下は Mapterhorn だけを読む。
+  404 はブラウザのコンソールに出るが、地図には影響しない。
+- 自治体 DEM を指定したときは、DEM を `mapterhorn://` のプロトコル経由で読み、段彩・陰影・3D 地形も同じ経路を通す。
   等高線は maplibre-contour が z12 までの ZXY を読むので、自治体 DEM は効かない。
 - **細かさの表示**: 重ねる PMTiles のタイルには本家のソースも合成されているため、タイルの有無では
   自治体 DEM の範囲が分からない。データのある範囲の GeoJSON（`?dem_overlay_coverage=`、
   各地物の属性 `source` がソースの識別子）を本家の被覆タイルと同じ透明な塗りで載せ、
   z13 以上では「画面中央の DEM」に「0.5m メッシュ（鳥取県 0.5m DEM）」と出す。
+  raster-dem のタイルは地図のズームを四捨五入した段で読まれる（z12.5 で z13）ので、判定もそろえている。
   GeoJSON は検証リポジトリの `source_coverage.py` で作る（図郭を 1/32 に間引いてポリゴン化。
   縁は 16m ほど粗い）。
 
 限界: 本家の合成は異なるソースの境目をガウスぼかしでつなぐので、自治体 DEM の縁（県境）に
-ぼけた帯が出る。17.5GB の PMTiles をどこから配信するかは未定で、公開版のビルドでは
-まだ指定していない（[検証リポジトリの #6](https://github.com/shiwaku/mapterhorn-municipal-dem-validation/issues/6)）。
+ぼけた帯が出る（[検証リポジトリの #6](https://github.com/shiwaku/mapterhorn-municipal-dem-validation/issues/6)）。
+水田では、鳥取 DEM と地理院 5m が田 1 枚ごとに ±0.5m 違う所がある（測った時期の地表の違い。同 #6）。
 
 ### 陰影起伏の算出方法の切り替えはソースごと作り直す
 

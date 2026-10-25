@@ -145,7 +145,8 @@ let naisuiOpacity = DEFAULT_NAISUI_OPACITY
  * （見た目は同じで、PMTiles 方式は 705GB のアーカイブへの範囲読みで遅い）、
  * 操作を迷わせるだけだった。既定の TileJSON に固定し、切り分けが必要なときだけ
  * `?dem=zxy` / `?dem=pmtiles` で差し替える。
- * 自治体 DEM を重ねるとき（DEM_OVERLAY_URL）は、重ねられる PMTiles 方式にする。
+ * 自治体 DEM を重ねるとき（DEM_OVERLAY_URL）は、`mapterhorn://` のプロトコルで自治体 DEM と
+ * Mapterhorn の ZXY を振り分ける（demSourceSpec の 'pmtiles'。terrain.ts の fetchDemTile）。
  */
 const demMode: DemMode = ((): DemMode => {
   if (DEM_OVERLAY_URL) return 'pmtiles'
@@ -407,11 +408,12 @@ function applyCoverage(): void {
  * 被覆ポリゴンは z14 で数 m 単位に単純化されており、ソースの継ぎ目の数ピクセルは
  * ぼかしで両方が混ざるので、境界付近では厳密ではない。
  * 自治体 DEM は z13 未満では読まないので、そのズームでは範囲を問い合わせない。
+ * raster-dem のタイルは地図のズームを四捨五入した段で読まれる（z12.5 で z13）ので、判定もそろえる。
  */
 function demAt(point: maplibregl.PointLike): DemInfo | null {
   if (!map.getLayer(COVERAGE_ID)) return null
   const layers = [COVERAGE_ID]
-  if (map.getLayer(OVERLAY_COVERAGE_ID) && map.getZoom() >= DEM_OVERLAY_MIN_ZOOM) layers.push(OVERLAY_COVERAGE_ID)
+  if (map.getLayer(OVERLAY_COVERAGE_ID) && Math.round(map.getZoom()) >= DEM_OVERLAY_MIN_ZOOM) layers.push(OVERLAY_COVERAGE_ID)
   const feats = map.queryRenderedFeatures(point, { layers })
   return finestDem(feats.map((f) => String((f.properties as { source?: unknown })?.source ?? '')).filter(Boolean))
 }
