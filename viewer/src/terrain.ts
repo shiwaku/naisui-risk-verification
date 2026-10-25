@@ -19,7 +19,7 @@ export const TILEJSON_URL = 'https://tiles.mapterhorn.com/tilejson.json'
 export const ZXY_TEMPLATE = 'https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'
 export const PMTILES_BASE = 'https://download.mapterhorn.com'
 
-export const MAPTERHORN_ATTRIBUTION =
+const MAPTERHORN_CREDIT =
   '<a href="https://mapterhorn.com/attribution" target="_blank" rel="noopener">© Mapterhorn</a>'
 
 /** DEM タイルのネイティブズーム（z13〜z17 のアーカイブがある）。これより先は overzoom。 */
@@ -33,13 +33,18 @@ const DEM_MAX_ZOOM = 17
  * 標高は測地成果2024 にそろえてあるので、地理院 DEM とつながる
  * （作り方: shiwaku/mapterhorn-municipal-dem-validation）。
  * `?dem_overlay=<url>` か `VITE_DEM_OVERLAY_URL` で指定する。配信先は CORS と Range Request が要る。
- * 指定したときは DEM を PMTiles 方式で読み、段彩もこの経路を通す。
+ * 公開版のビルドは .env.production で鳥取 0.5m を指定している。`?dem_overlay=none` で外せる。
+ * 指定したときは DEM を `mapterhorn://` のプロトコル経由で読み（fetchDemTile）、段彩もこの経路を通す。
  */
-export const DEM_OVERLAY_URL: string | null =
+export const DEM_OVERLAY_URL: string | null = overlayParam('dem_overlay', import.meta.env.VITE_DEM_OVERLAY_URL)
+
+/** URL のパラメータ → ビルド時の環境変数の順に引く。`none` は「使わない」。 */
+function overlayParam(name: string, env: string | undefined): string | null {
   // scripts/check-*.mjs は Node でこのモジュールを読むので、location が無いこともある
-  (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('dem_overlay')) ??
-  import.meta.env.VITE_DEM_OVERLAY_URL ??
-  null
+  const q = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get(name)
+  const v = q ?? env ?? null
+  return v && v !== 'none' ? v : null
+}
 
 /**
  * 自治体 DEM のデータのある範囲（GeoJSON, EPSG:4326、各地物の `source` 属性がソースの識別子）。
@@ -48,10 +53,18 @@ export const DEM_OVERLAY_URL: string | null =
  * 作り方は shiwaku/mapterhorn-municipal-dem-validation の source_coverage.py。
  * `?dem_overlay_coverage=<url>` か `VITE_DEM_OVERLAY_COVERAGE_URL` で指定する。
  */
-export const DEM_OVERLAY_COVERAGE_URL: string | null =
-  (typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('dem_overlay_coverage')) ??
-  import.meta.env.VITE_DEM_OVERLAY_COVERAGE_URL ??
-  null
+export const DEM_OVERLAY_COVERAGE_URL: string | null = DEM_OVERLAY_URL
+  ? overlayParam('dem_overlay_coverage', import.meta.env.VITE_DEM_OVERLAY_COVERAGE_URL)
+  : null
+
+/** 重ねた自治体 DEM の出典。地図の帰属表示で Mapterhorn の後ろに足す。 */
+export const DEM_OVERLAY_ATTRIBUTION: string | null = DEM_OVERLAY_URL
+  ? overlayParam('dem_overlay_attribution', import.meta.env.VITE_DEM_OVERLAY_ATTRIBUTION)
+  : null
+
+export const MAPTERHORN_ATTRIBUTION = DEM_OVERLAY_ATTRIBUTION
+  ? `${MAPTERHORN_CREDIT} / ${DEM_OVERLAY_ATTRIBUTION}`
+  : MAPTERHORN_CREDIT
 
 /** 自治体 DEM を先に読むズーム。これより低いズームは Mapterhorn の planet アーカイブだけを読む。 */
 export const DEM_OVERLAY_MIN_ZOOM = 13
@@ -176,11 +189,24 @@ function archive(z: number, x: number, y: number): PMTiles {
 }
 
 async function readTile(z: number, x: number, y: number, signal: AbortSignal) {
-  if (overlay && z >= DEM_OVERLAY_MIN_ZOOM) {
-    const r = await overlay.getZxy(z, x, y, signal)
-    if (r) return r.data
+  if (overlay) {
+    if (z >= DEM_OVERLAY_MIN_ZOOM) {
+      const r = await overlay.getZxy(z, x, y, signal)
+      if (r) return r.data
+    }
+    // 自治体 DEM の外は ZXY で読む。z6 アーカイブへの範囲読みより速い（README「DEM の配信方式は選ばせない」）。
+    // 無いタイル（日本の z17 など）は 404 になり、fetchDemTile が祖先タイルを拡大する
+    return zxyTile(z, x, y, signal)
   }
   return (await archive(z, x, y).getZxy(z, x, y, signal))?.data
+}
+
+async function zxyTile(z: number, x: number, y: number, signal: AbortSignal) {
+  const url = ZXY_TEMPLATE.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y))
+  const res = await fetch(url, { signal })
+  if (res.status === 404) return undefined
+  if (!res.ok) throw new Error(`DEM tile ${z}/${x}/${y}: HTTP ${res.status}`)
+  return res.arrayBuffer()
 }
 
 /**

@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_DEM_OVERLAY_URL?: string
   /** 自治体 DEM のデータのある範囲（GeoJSON）。coverage.ts を参照。 */
   readonly VITE_DEM_OVERLAY_COVERAGE_URL?: string
+  /** 重ねた自治体 DEM の出典（HTML）。地図の帰属表示に足す。 */
+  readonly VITE_DEM_OVERLAY_ATTRIBUTION?: string
 }
 
 /** vite.config.ts の define で埋め込むビルド時刻。 */
